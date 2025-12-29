@@ -1,0 +1,15 @@
+src/
+*.test.ts
+*.spec.ts
+__tests__/
+tsconfig*.json
+vitest.config.ts
+.eslintrc.js
+.prettierrc
+.husky/
+.git/
+.github/
+coverage/
+.env
+keys/
+node_modules
