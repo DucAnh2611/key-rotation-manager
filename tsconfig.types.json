@@ -1,9 +1,11 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "declaration": true,
-    "emitDeclarationOnly": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
     "outDir": "./dist/types",
+    "declaration": true,
+    "declarationMap": true,
+    "emitDeclarationOnly": true,
   },
-  "exclude": ["**/__test__/**", "**/__tests__/**", "**/*.spec.ts", "**/*.test.ts"],
 }

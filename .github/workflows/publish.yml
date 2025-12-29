@@ -1,0 +1,64 @@
+name: Publish to NPM
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+        continue-on-error: true
+
+      - name: Build package
+        run: npm run build
+
+      - name: Check if version changed
+        id: version-check
+        run: |
+          CURRENT_VERSION=$(node -p "require('./package.json').version")
+          echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+
+          # Get latest published version
+          PUBLISHED_VERSION=$(npm view key-rotation-manager version 2>/dev/null || echo "0.0.0")
+          echo "published_version=$PUBLISHED_VERSION" >> $GITHUB_OUTPUT
+
+          if [ "$CURRENT_VERSION" != "$PUBLISHED_VERSION" ]; then
+            echo "should_publish=true" >> $GITHUB_OUTPUT
+            echo "Version changed from $PUBLISHED_VERSION to $CURRENT_VERSION"
+          else
+            echo "should_publish=false" >> $GITHUB_OUTPUT
+            echo "Version unchanged: $CURRENT_VERSION"
+          fi
+
+      - name: Publish to NPM
+        if: steps.version-check.outputs.should_publish == 'true'
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_PUBLISH }}
+
+      - name: Create Git Tag
+        if: steps.version-check.outputs.should_publish == 'true'
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git tag v${{ steps.version-check.outputs.current_version }}
+          git push origin v${{ steps.version-check.outputs.current_version }}

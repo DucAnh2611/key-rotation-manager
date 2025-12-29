@@ -2,7 +2,8 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "module": "commonjs",
+    "moduleResolution": "node",
     "outDir": "./dist/cjs",
+    "declaration": false,
   },
-  "exclude": ["**/__test__/**", "**/__tests__/**", "**/*.spec.ts", "**/*.test.ts"],
 }

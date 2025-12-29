@@ -1,4 +1,4 @@
 node_modules
 dist
-keys
-keys/*keys/custom-path/*
+package-lock.json
+*.tgz

@@ -1,8 +1,9 @@
 import { Module } from './core/module.core';
 import * as types from './types';
-import * as crypto from './utils/crypto.util';
-import * as file from './utils/file.util';
-import * as string from './utils/string.util';
+export * from './types';
+export * from './utils/crypto.util';
+export * from './utils/file.util';
+export * from './utils/string.util';
 
 let instance: Module | null = null;
 
@@ -12,7 +13,10 @@ let instance: Module | null = null;
  * @param only: use session instance or create new instance
  * @returns new instance
  */
-const create = (options: Partial<types.TModuleOptions> = {}, only: boolean = false): Module => {
+export const create = (
+  options: Partial<types.TModuleOptions> = {},
+  only: boolean = false
+): Module => {
   if (only) return new Module(options);
 
   if (!instance) {
@@ -28,18 +32,11 @@ const create = (options: Partial<types.TModuleOptions> = {}, only: boolean = fal
  * @param extend: overide options
  * @returns new instance
  */
-const clone = (instance: Module, extend?: Partial<types.TModuleOptions>): Module => {
+export const clone = (instance: Module, extend?: Partial<types.TModuleOptions>): Module => {
   return new Module({ ...instance.getOptions(), ...extend });
 };
 
 /**
  * @alias create()
  */
-const m = create;
-
-const utils = {
-  ...crypto,
-  ...string,
-  ...file,
-};
-export { types, create, clone, m, utils };
+export const km = create;
