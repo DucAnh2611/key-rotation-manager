@@ -1,9 +1,6 @@
 import { Module } from './core/module.core';
 import * as types from './types';
 export * from './types';
-export * from './utils/crypto.util';
-export * from './utils/file.util';
-export * from './utils/string.util';
 
 let instance: Module | null = null;
 
@@ -15,7 +12,7 @@ let instance: Module | null = null;
  */
 export const create = (
   options: Partial<types.TModuleOptions> = {},
-  only: boolean = false
+  only: boolean = true
 ): Module => {
   if (only) return new Module(options);
 
@@ -40,3 +37,8 @@ export const clone = (instance: Module, extend?: Partial<types.TModuleOptions>):
  * @alias create()
  */
 export const km = create;
+
+// internal use
+export * from './utils/crypto.util';
+export * from './utils/file.util';
+export * from './utils/string.util';

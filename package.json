@@ -1,18 +1,17 @@
 {
   "name": "key-rotation-manager",
-  "version": "1.0.2",
+  "version": "1.0.6",
   "description": "Simple, secure key rotation for Node.js",
-  "main": "./dist/cjs/index.js",
-  "module": "./dist/esm/index.js",
-  "types": "./dist/types/index.d.ts",
   "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/types/index.d.ts",
-      "import": "./dist/esm/index.js",
-      "require": "./dist/cjs/index.js"
-    },
-    "./package.json": "./package.json"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
   },
   "files": [
     "dist",
@@ -20,18 +19,12 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "npm run clean && npm run build:cjs && npm run build:esm && npm run build:types",
-    "build:cjs": "tsc -p tsconfig.cjs.json",
-    "build:esm": "tsc -p tsconfig.esm.json",
-    "build:types": "tsc -p tsconfig.types.json",
+    "build": "tsup",
     "clean": "rimraf dist",
-    "dev": "tsx watch src/index.ts",
-    "test": "vitest run",
-    "test:watch": "vitest watch",
     "lint": "eslint src --ext .ts",
     "lint:fix": "eslint src --ext .ts --fix",
     "format": "prettier --write \"src/**/*.ts\"",
-    "prepublishOnly": "npm run build && npm test"
+    "prepublishOnly": "npm run build"
   },
   "keywords": [
     "typescript",
@@ -48,6 +41,7 @@
     "@typescript-eslint/parser": "^8.28.0",
     "prettier": "^3.3.3",
     "rimraf": "^5.0.7",
+    "tsup": "^8.5.1",
     "tsx": "^4.19.2",
     "typescript": "^5.4.5"
   }

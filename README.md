@@ -7,6 +7,21 @@ This library is designed for backend systems that need safe, extensible, and tra
 
 ---
 
+## Issues & Bug Reports
+
+Found a bug or have a feature request?
+
+**[🐛 Report an Issue](https://github.com/DucAnh2611/key-rotation-manager/issues/new)**
+
+Please include:
+- A clear description of the issue
+- Steps to reproduce
+- Expected vs actual behavior
+- Your environment (Node.js version, OS, package version)
+- Code samples if applicable
+
+---
+
 ## Features
 
 - 🔐 Secure key generation (AES-256-GCM by default)
@@ -22,7 +37,7 @@ This library is designed for backend systems that need safe, extensible, and tra
 ## Installation
 
 ```bash
-npm install rotate-key
+npm install key-rotation-manager
 ```
 
 ---
@@ -30,19 +45,20 @@ npm install rotate-key
 ## Quick Start
 
 ```typescript
-import { create } from 'rotate-key';
+import { create, km } from 'key-rotation-manager';
 
 const keyManager = create({});
+// or 
+const keyManager = km({});
 
 const { key, path } = await keyManager.newKey({
   type: 'api',
+  ...options
 });
-
-console.log(key, path);
 ```
 
 This will:
-- Create a `keys/` directory
+- Create a `keys/` directory base on `{{path}}/{{filename}}.{{fileExt}}`
 - Generate a new key
 - Save it using default storage rules
 
@@ -53,9 +69,11 @@ This will:
 ### Initialize KeyManager
 
 ```typescript
-import { create } from 'rotate-key';
+import { create, km } from 'key-rotation-manager';
 
 const keyManager = create({});
+// or 
+const keyManager = km({});
 ```
 
 On initialization:
@@ -71,7 +89,7 @@ On initialization:
   file: ['{{type}}', 'v', '{{version}}'],
   fileSplitor: '_',
   fileExt: 'json',
-  gitIgnore: true,
+  gitIgnore: true, // add resolved path to .gitignore
 
   crypto: {
     algorithm: 'aes-256-gcm',
@@ -105,7 +123,7 @@ keys/
 ### 1. Non-expiring Key
 
 ```typescript
-const { key } = await keyManager.newKey({
+const { key } = await km.newKey({
   type: 'service',
 });
 ```
@@ -113,7 +131,7 @@ const { key } = await keyManager.newKey({
 ### 2. Expiring / Rotating Key
 
 ```typescript
-const { key } = await keyManager.newKey({
+const { key } = await km.newKey({
   type: 'service',
   duration: 30,
   unit: 'seconds',
@@ -133,7 +151,7 @@ const { key } = await keyManager.newKey({
   duration: 30,
   unit: 'seconds',
   rotate: true,
-  merge: true,
+  merge: true, // Merge into 1 file {{path}}/{filename}
 });
 ```
 
@@ -142,12 +160,13 @@ const { key } = await keyManager.newKey({
 ## Custom Path & File Naming
 
 ```typescript
-import { create } from 'rotate-key';
+import { create } from 'key-rotation-manager';
 
 const keyManager = create({
   path: ['keys', 'custom'],
   file: '{{type}}',
   fileExt: 'txt',
+  ...options,
 });
 ```
 
@@ -155,6 +174,9 @@ Resulting structure:
 
 ```
 keys/custom/service.txt
+
+>> .gitignore
+keys/custom/*
 ```
 
 ---
@@ -195,7 +217,7 @@ Returned structure:
 ```typescript
 {
   ready: Key | null,
-  expired?: Key
+  expired: Key | null
 }
 ```
 
@@ -221,8 +243,8 @@ Expired rotate options not provided
 
 ```typescript
 const result = await keyManager.getKey({
-  path: 'keys/service_merge.json',
-  version: 'non-rotate',
+  path: 'path (full path return from km.newKey)',
+  version: 'version',
 });
 ```
 
@@ -240,7 +262,7 @@ keyManager.useGetKey(async () => {
     key: '...',
     hashed: '...',
     type: 'service',
-    version: 'rotate',
+    version: 'version',
     rotate: true,
   };
 });
@@ -276,6 +298,12 @@ keyManager.once(EEvent.STORE_INIT_FOLDER, ({ storePath }) => {
 - Multi-version key handling
 - Custom persistence strategies
 - Backend Node.js services
+
+---
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
 
 ---
 

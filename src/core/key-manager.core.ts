@@ -21,6 +21,54 @@ export class KeyManager extends Store {
     this.cryptoService = new CryptoService(this.kOptions.crypto);
   }
 
+  /**
+   * Retrieve and validate a stored key by path and version.
+   *
+   * This method:
+   * - Loads a key from the configured store
+   * - Validates structure, type safety, and time constraints
+   * - Detects expiration and rotation eligibility
+   * - Optionally auto-rotates an expired key if rotation options are provided
+   *
+   * If the key is expired and marked as rotatable, a new key will be generated
+   * automatically using the provided `onRotate` options.
+   *
+   * @param options Configuration for key retrieval
+   * @param options.path Storage path of the key
+   * @param options.version Specific key version to retrieve
+   * @param options.onRotate Optional rotation configuration used when the key
+   *        is expired and renewable
+   *
+   * @returns An object containing:
+   * - `ready`: The valid (usable) key, or the newly generated key after rotation
+   * - `expired`: The expired key if rotation occurred, otherwise `null`
+   *
+   * @throws Error if:
+   * - The key does not exist
+   * - The key structure or fields are invalid
+   * - The key is expired but rotation options are missing
+   * - The key is not yet valid or otherwise unusable
+   *
+   * @example
+   * ```ts
+   * const { ready, expired } = await keyManager.getKey({
+   *   path: '/keys/api',
+   *   version: 'v1',
+   *    // This define the new key attributes: is it rotate? Durations and unit?
+   *   onRotate: {
+   *     duration: 30,
+   *     unit: 'days',
+   *     rotate: true,
+   *   },
+   * });
+   *
+   * if (expired) {
+   *   console.log('Key was rotated from version:', expired.version);
+   * }
+   *
+   * // Use expired.originKey ?? ready.originKey safely
+   * ```
+   */
   public async getKey(
     options: TGetKeyOptions
   ): Promise<{ expired: TKeyGenerated | null; ready: TKeyGenerated | null }> {
@@ -43,13 +91,48 @@ export class KeyManager extends Store {
     }
 
     if (!ok && key)
-      throw new Error(
-        `${message}\nPath: ${path}\nVersion: ${version}\nReason: ${errorOn}`
-      );
+      throw new Error(`${message}\nPath: ${path}\nVersion: ${version}\nReason: ${errorOn}`);
 
     return { expired, ready: key };
   }
 
+  /**
+   * Generate a new cryptographic key and persist it to the configured store.
+   *
+   * This method:
+   * - Generates a random origin key
+   * - Hashes the key using the configured crypto options
+   * - Calculates an expiration time (if provided)
+   * - Assigns versioning and rotation metadata
+   * - Saves the generated key to storage
+   * - The hashed key will follow this format: `salt-buffer:hashed`
+   *
+   * @param options Configuration for key generation
+   * @param options.type Logical key type (e.g. api, session, encryption, etc.)
+   * @param options.duration Optional lifetime value for the key
+   * @param options.unit Time unit for the duration (seconds | minutes | hours | days)
+   * @param options.rotate Whether this key should participate in key rotation
+   * @param options.merge Whether to merge with an existing stored key (if supported)
+   *
+   * @param variables Optional variables used for dynamic path or filename resolution
+   *
+   * @returns An object containing:
+   * - `key`: The generated key metadata and raw key value
+   * - `path`: The storage path where the key was saved
+   *
+   * @example
+   * ```ts
+   * const { key, path } = await keyManager.newKey(
+   *   {
+   *     type: 'api',
+   *     duration: 30, <- Optional
+   *     unit: 'days', <- Optional
+   *     rotate: true, <- Optional
+   *   },
+   *   { env: 'production', ... }
+   * );
+   * ```
+   */
   public async newKey(
     options: TGenerateKeyOptions,
     variables: TKeyVariables = {}

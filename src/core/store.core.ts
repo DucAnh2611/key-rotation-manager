@@ -62,6 +62,8 @@ export class Store extends ConfigEvents {
 
     await this.fileUtil.write(path, JSON.stringify(saveData, null, 2));
 
+    this.emit(EEvent.STORE_FILE_SAVED, { path, data: saveData });
+
     return path;
   }
 
