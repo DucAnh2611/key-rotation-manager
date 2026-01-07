@@ -16,8 +16,8 @@ export type TGetKey = { expired: TKeyGenerated | null; ready: TKeyGenerated | nu
 export type TGetKeyOptions = {
   path: string;
   version: string;
-  onRotate?: Omit<Required<TGenerateKeyOptions>, 'type' | 'keyLength'> &
-    Pick<TGenerateKeyOptions, 'keyLength'>;
+  onRotate?: Omit<Required<TGenerateKeyOptions>, 'type' | 'keyLength' | 'merge'> &
+    Pick<TGenerateKeyOptions, 'keyLength' | 'merge'>;
 };
 
 export type TGetKeyEvents = {

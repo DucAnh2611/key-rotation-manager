@@ -25,9 +25,3 @@ export const create = (options: Partial<types.TModuleOptions> = {}, only: boolea
  */
 export const km = create;
 export type { KM };
-
-// internal use
-export * from './utils/crypto.util';
-export * from './utils/file.util';
-export * from './utils/string.util';
-export * from './utils/promise.util';
