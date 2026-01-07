@@ -11,7 +11,7 @@ export type TStoreOptions = TEventsOptions & {
    * Path to the folder where the store will be stored.
    * @default ['keys', '{{type}}'] // -> root/keys/{{type}}
    */
-  path: string | string[];
+  path: TFormatUsable;
 
   /**
    * File name to use for the store.
@@ -34,6 +34,9 @@ export type TStoreOptions = TEventsOptions & {
   /**
    * Add keys folder to .gitignore file
    * @default true
+   * if path is having {{variables}}, this will convert {{variables}} to *
+   * @example path: `['keys', '{{type}}']` -> `keys/*`
+   * @example path: `['keys', '{{type}}', 'v', '{{version}}']` -> `keys/* /v/* /{{file.join( {{fileSplitor}} )}}.{{fileExt}}`
    */
   gitIgnore: boolean;
 

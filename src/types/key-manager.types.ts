@@ -1,24 +1,75 @@
 import { TStoreOptions } from './store.types';
 
 export type TKeyManagerOptions = Partial<TStoreOptions> & {
-  versionGenerator: () => string;
+  /**
+   * Version generator function
+   * This function will be used to generate the version of the key
+   * @returns string | number | Promise<string | number>
+   */
+  versionGenerator: () => string | number | Promise<string | number>;
 };
 
 export type TKeyDurationUnit = 'seconds' | 'minutes' | 'hours' | 'days';
 
+export type TGetKey = { expired: TKeyGenerated | null; ready: TKeyGenerated | null };
+
 export type TGetKeyOptions = {
   path: string;
   version: string;
-  onRotate?: Omit<Required<TGenerateKeyOptions>, 'type'>;
+  onRotate?: Omit<Required<TGenerateKeyOptions>, 'type' | 'keyLength'> &
+    Pick<TGenerateKeyOptions, 'keyLength'>;
+};
+
+export type TGetKeyEvents = {
+  /**
+   * This will fire when key is rotatable but expired and missing options to rotate
+   */
+  onMissingRotateOption: (key: TKeyGenerated, options: TGetKeyOptions) => void | Promise<void>;
+  /**
+   * This will fire when key is invalid includes validate types, from date, to date, etc...
+   */
+  onKeyInvalid: (
+    key: TKeyGenerated,
+    message: string,
+    errorOn?: keyof TKeyGenerated
+  ) => void | Promise<void>;
+  /**
+   * This will fire when key is renewed
+   */
+  onKeyRenewed: (getKey: TGetKey, options: TGetKeyOptions['onRotate']) => void | Promise<void>;
+  /**
+   * This will fire when key file is not found or version is not found in file
+   * @description
+   * IMPORTANT: every file invalid should return `{}` as key data and this will caused this event to be fired
+   * - Invalid file (file not found or not valid json)
+   * - Version not found in file
+   * - From date in future
+   * - Properties in key data is not valid types
+   * - hashedBytes is less than 0
+   */
+  onKeyNotFound: (path: string, version: string | number) => void | Promise<void>;
+  onExpired: (path: string, key: TKeyGenerated) => void | Promise<void>;
 };
 
 export type TGenerateKeyOptions = {
   type: string;
+  keyLength?: number;
   duration?: number;
   unit?: TKeyDurationUnit;
-  rotate?: boolean;
+
   /**
+   * @property
+   * Mark key as rotateable
+   * - If this is `true` this options of `getKey` will define the next key whether it will be rotated or not
+   * - If this is `false` this key will not be rotated even if it is expired
+   */
+  rotate?: boolean;
+
+  /**
+   * @property
    * Merge keys into 1 files or multiple files
+   * - if this is `true`, becareful with `file` and `path` have {{version}} or {{variables}} is dynamic
+   * - Suggest to use file, path static defines for merge keys
    */
   merge?: boolean;
 };
@@ -45,11 +96,15 @@ export type TKeyGenerated = {
    */
   hashed: string;
   /**
-   * version of current key
+   * Hashed key bytes
+   */
+  hashedBytes: number;
+  /**
+   * Version of current key
    */
   version: number | string;
   /**
-   * auto renew on expired
+   * Auto renew on expired
    */
   rotate: boolean;
 };

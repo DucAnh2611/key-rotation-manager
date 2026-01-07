@@ -1,3 +1,4 @@
+import { TBaseOptions } from './base.type';
 import { TKeyGenerated } from './key-manager.types';
 
 export enum EEvent {
@@ -15,7 +16,7 @@ export type TEvents = {
   [EEvent.STORE_FILE_SAVED]: { path: string; data: Record<string, TKeyGenerated> };
 };
 
-export type TEventsOptions = {
+export type TEventsOptions = Partial<TBaseOptions> & {
   /**
    * Is use event emitter
    * @default true

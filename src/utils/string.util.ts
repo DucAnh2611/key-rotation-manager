@@ -24,6 +24,7 @@ export const bindString = (format: string, bindValues: Record<string, any>): str
       const val = trimmedPath.includes('.')
         ? getNested(bindValues, trimmedPath)
         : bindValues[trimmedPath];
+
       return val && typeof val === 'object' && !Array.isArray(val)
         ? JSON.stringify(flatten(val, trimmedPath))
         : match;

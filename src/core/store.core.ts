@@ -8,7 +8,7 @@ import { TKeyGenerated } from 'src/types/key-manager.types';
 export class Store extends ConfigEvents {
   private sOptions: Required<Omit<TStoreOptions, 'useEvent' | 'crypto'>>;
   private fileUtil: FileUtil;
-  private storePath?: string;
+  protected storePath?: string;
   protected saveKeyFn?: TSaveKeyFn;
   protected getKeyFn?: TGetKeyFn;
 
@@ -17,6 +17,7 @@ export class Store extends ConfigEvents {
 
     this.sOptions = { ...DEFAULT_STORE_OPTIONS, ...options };
     this.fileUtil = new FileUtil();
+
     this.initStore();
   }
 
@@ -28,18 +29,25 @@ export class Store extends ConfigEvents {
     return path;
   }
 
-  protected async getKeyStoreFolder(): Promise<string> {
+  private async getKeyStoreFolder(): Promise<string> {
     if (this.storePath) return this.storePath;
 
     const { path } = this.sOptions;
 
-    const folder = await this.fileUtil.getFolder(join(process.cwd(), this.getPath(path, '/')));
+    const first =
+      typeof path === 'object' && Array.isArray(path)
+        ? path[0]
+        : typeof path === 'string'
+          ? (path.split('/')[0] ?? '')
+          : '';
+
+    let folder = await this.fileUtil.getFolder(join(process.cwd(), first));
 
     return folder;
   }
 
   protected async getKeyFileData(filePath: string): Promise<Record<string, TKeyGenerated>> {
-    const existingData = await this.fileUtil.read(filePath);
+    const existingData = await this.fileUtil.read(filePath, '{}');
     const savedData = this.toSavedData(existingData);
 
     return savedData;
@@ -116,12 +124,12 @@ export class Store extends ConfigEvents {
       const parsedData = JSON.parse(dataString) as Record<string, TKeyGenerated>;
 
       if (typeof parsedData !== 'object' || Array.isArray(parsedData)) {
-        throw new Error(`Invalid JSON data (must be Record<version, TKeyGenerated>) ${dataString}`);
+        throw new Error('Invalid JSON data (must be Record<version, TKeyGenerated>)');
       }
 
       return parsedData;
     } catch (error) {
-      throw new Error('Invalid JSON data (must be Record<version, TKeyGenerated>)');
+      throw new Error(`Invalid JSON data (must be Record<version, TKeyGenerated>) ${dataString}`);
     }
   }
 
@@ -132,22 +140,25 @@ export class Store extends ConfigEvents {
     const gitignoreContent = await this.fileUtil.read(gitignorePath);
 
     const storePath = this.getPath(this.sOptions.path, '/');
+    const filePath = this.getPath(this.sOptions.file, this.sOptions.fileSplitor);
 
-    if (!gitignoreContent.includes(`${storePath}/*\r`)) {
-      await this.fileUtil.write(
-        gitignorePath,
-        `${gitignoreContent ? '\r' : ''}${storePath}/*\r`,
-        'a'
-      );
+    let folder: string[] | string = [];
+    folder.push(storePath.replace(/\{\{.*?\}\}/g, '*'));
+    folder.push(`${filePath.replace(/\{\{.*?\}\}/g, '*')}.${this.sOptions.fileExt}`);
+
+    folder = folder.join('/');
+
+    if (!gitignoreContent.includes(`${folder}`)) {
+      await this.fileUtil.write(gitignorePath, `${gitignoreContent ? '\r' : ''}${folder}`, 'a');
 
       return {
-        gitIgnoreStorePath: storePath,
+        gitIgnoreStorePath: folder,
         gitIgnorePath: gitignorePath,
         gitIgnoreAddStatus: 'added',
       };
     } else {
       return {
-        gitIgnoreStorePath: storePath,
+        gitIgnoreStorePath: folder,
         gitIgnorePath: gitignorePath,
         gitIgnoreAddStatus: 'already',
       };

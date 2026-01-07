@@ -1,8 +1,8 @@
-import { Module } from './core/module.core';
+import { KM } from './core/module.core';
 import * as types from './types';
 export * from './types';
 
-let instance: Module | null = null;
+let instance: KM | null = null;
 
 /**
  *
@@ -10,35 +10,24 @@ let instance: Module | null = null;
  * @param only: use session instance or create new instance
  * @returns new instance
  */
-export const create = (
-  options: Partial<types.TModuleOptions> = {},
-  only: boolean = true
-): Module => {
-  if (only) return new Module(options);
+export const create = (options: Partial<types.TModuleOptions> = {}, only: boolean = true): KM => {
+  if (only) return new KM(options);
 
   if (!instance) {
-    instance = new Module(options);
+    instance = new KM(options);
   }
 
   return instance;
 };
 
 /**
- *
- * @param instance: use instance options to create new instance
- * @param extend: overide options
- * @returns new instance
- */
-export const clone = (instance: Module, extend?: Partial<types.TModuleOptions>): Module => {
-  return new Module({ ...instance.getOptions(), ...extend });
-};
-
-/**
  * @alias create()
  */
 export const km = create;
+export type { KM };
 
 // internal use
 export * from './utils/crypto.util';
 export * from './utils/file.util';
 export * from './utils/string.util';
+export * from './utils/promise.util';

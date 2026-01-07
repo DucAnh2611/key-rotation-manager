@@ -1,4 +1,5 @@
 import { access, mkdir, readFile, unlink, writeFile } from 'fs/promises';
+import { dirname } from 'path';
 
 export class FileUtil {
   async getFolder(path: string): Promise<string> {
@@ -19,15 +20,20 @@ export class FileUtil {
     try {
       const data = await readFile(path, { encoding: 'utf8' });
       return data;
-    } catch {
-      return fallback ?? '';
+    } catch (error) {
+      if (fallback) return fallback;
+
+      throw error;
     }
   }
 
   async write(path: string, data: string, flag: 'w' | 'a' = 'w'): Promise<void> {
     try {
+      const dir = dirname(path);
+      await this.getFolder(dir);
+
       await writeFile(path, data, { encoding: 'utf8', flag });
-    } catch {
+    } catch (error) {
       throw new Error(`Failed to write file: ${path}`);
     }
   }

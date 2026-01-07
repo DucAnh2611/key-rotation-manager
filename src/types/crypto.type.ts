@@ -1,12 +1,6 @@
-export type TAlgorithmType =
-  | 'aes-128-gcm'
-  | 'aes-192-gcm'
-  | 'aes-256-gcm'
-  | 'aes-128-cbc'
-  | 'aes-192-cbc'
-  | 'aes-256-cbc';
+export type TAlgorithmType = 'aes-128-cbc' | 'aes-192-cbc' | 'aes-256-cbc';
 
-export type TKeyDerivationFunction = 'scrypt' | 'pbkdf2' | 'none';
+export type TKeyDerivationFunction = 'pbkdf2' | 'none';
 
 export type THashAlgorithm = 'sha256' | 'sha512' | 'sha384';
 
@@ -16,12 +10,9 @@ export interface TCryptoOptions {
   /**
    * Encryption algorithm used for symmetric encryption/decryption.
    *
-   * - GCM variants (`aes-*-gcm`) provide **authenticated encryption**
-   *   (confidentiality + integrity).
-   * - CBC variants (`aes-*-cbc`) provide **encryption only** and
-   *   require external integrity checks.
+   * CBC variants (`aes-*-cbc`) provide encryption with integrity checks.
    *
-   * @default 'aes-256-gcm'
+   * @default 'aes-256-cbc'
    */
   algorithm: TAlgorithmType;
 
@@ -29,12 +20,11 @@ export interface TCryptoOptions {
    * Key Derivation Function (KDF) used to derive a cryptographic key
    * from a password or secret.
    *
-   * - `scrypt`: Memory-hard, resistant to GPU/ASIC attacks (**recommended**)
    * - `pbkdf2`: CPU-hard, widely supported, configurable via `iterations`
    * - `none`: Uses the provided secret directly as a hex-encoded key
    *           (only safe when the key is already cryptographically strong)
    *
-   * @default 'scrypt'
+   * @default 'pbkdf2'
    */
   kdf: TKeyDerivationFunction;
 
@@ -82,9 +72,7 @@ export interface TCryptoOptions {
 
   /**
    * Length (in bytes) of the authentication tag.
-   *
-   * Used only by AEAD algorithms (e.g. AES-GCM).
-   * Ignored for non-AEAD algorithms like CBC.
+   * Not used with CBC mode, kept for compatibility.
    *
    * @default 16
    */

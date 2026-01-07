@@ -1,5 +1,7 @@
 import {
   TGenerateKeyOptions,
+  TGetKey,
+  TGetKeyEvents,
   TGetKeyOptions,
   TKeyGenerated,
   TKeyManagerOptions,
@@ -9,6 +11,7 @@ import { Store } from './store.core';
 import { CryptoService } from 'src/utils/crypto.util';
 import { DEFAULT_KEY_MANAGER_OPTIONS } from 'src/constants/default.constant';
 import { addDuration, bindString, isDate, isType } from 'src/utils/string.util';
+import { executePromisably, promiseAll } from 'src/utils/promise.util';
 
 export class KeyManager extends Store {
   private cryptoService: CryptoService;
@@ -38,6 +41,8 @@ export class KeyManager extends Store {
    * @param options.version Specific key version to retrieve
    * @param options.onRotate Optional rotation configuration used when the key
    *        is expired and renewable
+   *
+   * @param events Configuration for event triggered
    *
    * @returns An object containing:
    * - `ready`: The valid (usable) key, or the newly generated key after rotation
@@ -70,30 +75,81 @@ export class KeyManager extends Store {
    * ```
    */
   public async getKey(
-    options: TGetKeyOptions
-  ): Promise<{ expired: TKeyGenerated | null; ready: TKeyGenerated | null }> {
+    options: TGetKeyOptions,
+    /**
+     * If this is not provided, the key manager will throw error instead of fire event
+     */
+    events: Partial<TGetKeyEvents> = {}
+  ): Promise<TGetKey> {
     const { path, version } = options;
 
-    let key: TKeyGenerated | null = await this.getKeyByStore(path, String(version));
-    let expired: TKeyGenerated | null = null;
+    const key = await this.getKeyByStore(path, String(version));
+
+    if (!key) {
+      await executePromisably(events.onKeyNotFound?.bind(this)(path, version));
+      await this.sysLog(`Key not found!`, {
+        path,
+        version,
+      });
+      return { expired: null, ready: null };
+    }
 
     const { ok, message, isExpired, isRenewable, errorOn } = this.validateKey(key);
 
     if (!ok && isExpired && isRenewable && key) {
-      if (!options.onRotate) throw new Error('Expired rotate options not provided');
+      if (!options.onRotate) {
+        await promiseAll(
+          executePromisably(events.onMissingRotateOption?.bind(this)(key, options)),
+          this.sysLog('Expired rotate options not provided!', {
+            options,
+          })
+        );
+        return { expired: null, ready: null };
+      }
 
       const renew = await this.newKey({
         type: key.type,
         ...options.onRotate,
       });
 
+      await promiseAll(
+        executePromisably(
+          events.onKeyRenewed?.bind(this)({ expired: key, ready: renew.key }, options.onRotate)
+        ),
+        this.sysLog(`Key renewed!`, {
+          path,
+          version,
+        })
+      );
+
       return { expired: key, ready: renew.key };
     }
 
-    if (!ok && key)
-      throw new Error(`${message}\nPath: ${path}\nVersion: ${version}\nReason: ${errorOn}`);
+    if (!ok && isExpired && !isRenewable && key) {
+      await promiseAll(
+        executePromisably(events.onExpired?.bind(this)(path, key)),
+        this.sysLog(`Key expired!`, {
+          path,
+          version,
+        })
+      );
+      return { expired: key, ready: null };
+    }
 
-    return { expired, ready: key };
+    if (!ok) {
+      await promiseAll(
+        executePromisably(events.onKeyInvalid?.bind(this)(key, message, errorOn)),
+        this.sysLog(`Key is invalid!`, {
+          path,
+          version,
+          reason: errorOn,
+          message,
+        })
+      );
+      return { expired: null, ready: null };
+    }
+
+    return { expired: null, ready: key };
   }
 
   /**
@@ -137,25 +193,33 @@ export class KeyManager extends Store {
     options: TGenerateKeyOptions,
     variables: TKeyVariables = {}
   ): Promise<{ key: TKeyGenerated; path: string }> {
-    const { rotate, duration, type, unit, merge } = options;
+    const { rotate, duration, type, unit, merge, keyLength } = options;
 
-    const originKey = this.cryptoService.generateRandom(this.kOptions.crypto.keyLength!);
-    const salt = this.cryptoService.generateRandom(this.kOptions.crypto.saltLength!);
+    const { key, length: kLength } = this.cryptoService.generateKey(keyLength);
+    const { salt } = this.cryptoService.generateSalt();
 
-    const hashedKey = this.cryptoService.hash(originKey, salt);
+    await this.sysLog(`Key generated\nOptions:`, options);
+
+    const hashedKey = this.cryptoService.hash(key, salt);
     const now = new Date();
 
     const keyGenerated: TKeyGenerated = {
       from: now.toISOString(),
       to: duration && unit ? addDuration(now, duration, unit).toISOString() : 'NON_EXPIRED',
-      key: originKey,
+      key: key,
       hashed: hashedKey,
+      hashedBytes: kLength,
       type,
-      version: this.kOptions.versionGenerator(),
+      version: await executePromisably(this.kOptions.versionGenerator()),
       rotate: !!rotate,
     };
 
     const path = await this.saveKeyToStore(keyGenerated, !!merge, variables);
+    await this.sysLog(`Key saved!`, {
+      path,
+      version: keyGenerated.version,
+      type: keyGenerated.type,
+    });
 
     return { key: keyGenerated, path };
   }
@@ -166,7 +230,7 @@ export class KeyManager extends Store {
     }
 
     const savedData = await this.getKeyFileData(path);
-    return savedData?.[version] ?? null;
+    return savedData[version] ?? null;
   }
 
   private async saveKeyToStore(
@@ -181,15 +245,13 @@ export class KeyManager extends Store {
     );
   }
 
-  private validateKey(keyGenerated: Partial<TKeyGenerated> | null): {
+  private validateKey(keyGenerated: Partial<TKeyGenerated>): {
     ok: boolean;
     message: string;
     errorOn?: keyof TKeyGenerated;
     isExpired?: boolean;
     isRenewable?: boolean;
   } {
-    if (!keyGenerated) return { ok: false, message: 'Key is not generated' };
-
     const requiredKeyGenerated = keyGenerated as TKeyGenerated;
 
     const typeChecks: Record<keyof TKeyGenerated, keyof ReturnType<typeof isType>> = {
@@ -200,6 +262,7 @@ export class KeyManager extends Store {
       rotate: 'boolean',
       type: 'string',
       version: 'string',
+      hashedBytes: 'number',
     };
 
     for (const [field, type] of Object.entries(typeChecks) as Array<
@@ -228,6 +291,13 @@ export class KeyManager extends Store {
         isRenewable: !!requiredKeyGenerated.rotate,
       };
     }
+
+    if (requiredKeyGenerated.hashedBytes < 0)
+      return {
+        ok: false,
+        message: 'Invalid hashedBytes range',
+        errorOn: 'hashedBytes',
+      };
 
     return { ok: true, message: '' };
   }

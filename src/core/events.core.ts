@@ -8,7 +8,7 @@ export class Events extends Base {
   private eOptions: Required<TEventsOptions>;
 
   constructor(options: TEventsOptions) {
-    super();
+    super(options);
 
     this.eOptions = {
       ...DEFAULT_EVENTS_OPTIONS,
@@ -20,7 +20,7 @@ export class Events extends Base {
     }
   }
 
-  emit<K extends keyof TEvents>(event: K, args: TEvents[K]) {
+  protected emit<K extends keyof TEvents>(event: K, args: TEvents[K]) {
     if (!this.events) return this;
 
     this.events.emit(event, args);

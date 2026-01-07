@@ -71,9 +71,9 @@ This will:
 ```typescript
 import { create, km } from 'key-rotation-manager';
 
-const keyManager = create({});
+const keyManager = create();
 // or 
-const keyManager = km({});
+const keyManager = km();
 ```
 
 On initialization:
@@ -85,15 +85,15 @@ On initialization:
 
 ```typescript
 {
-  path: ['keys'],
-  file: ['{{type}}', 'v', '{{version}}'],
+  path: ['keys', '{{type}}'], // FROM 1.0.8 allow using variable: {{...}}
+  file: ['v', '{{version}}'],
   fileSplitor: '_',
   fileExt: 'json',
   gitIgnore: true, // add resolved path to .gitignore
 
   crypto: {
     algorithm: 'aes-256-gcm',
-    kdf: 'scrypt',
+    kdf: 'pbkdf2',
     hashAlgorithm: 'sha256',
     keyLength: 32,
     ivLength: 16,
@@ -113,7 +113,8 @@ With default settings, keys are stored as:
 
 ```
 keys/
-└── api_v_1700000000000.json
+└── {{type}}/
+    └── v_{{version}}.json
 ```
 
 ---
@@ -148,10 +149,8 @@ Merge mode stores multiple key versions in a single file.
 ```typescript
 const { key } = await keyManager.newKey({
   type: 'service',
-  duration: 30,
-  unit: 'seconds',
-  rotate: true,
   merge: true, // Merge into 1 file {{path}}/{filename}
+  ...options,
 });
 ```
 
@@ -163,8 +162,8 @@ const { key } = await keyManager.newKey({
 import { create } from 'key-rotation-manager';
 
 const keyManager = create({
-  path: ['keys', 'custom'],
-  file: '{{type}}',
+  path: ['keys', '{{type}}'],
+  file: ['{{version}}', '{{custom_variables}}'],
   fileExt: 'txt',
   ...options,
 });
@@ -173,10 +172,16 @@ const keyManager = create({
 Resulting structure:
 
 ```
-keys/custom/service.txt
+path: ['keys', '{{type}}']
+file: ['{{version}}', '{{custom_variables}}']
+fileExt: "txt"
+type: "service"
+variables: { custom_variables: "example" }
+
+getKey({ type }, variables) -> keys/service/17000000000_example.txt
 
 >> .gitignore
-keys/custom/*
+keys/*/*_*.txt
 ```
 
 ---
@@ -201,7 +206,7 @@ The returned value becomes `key.path`.
 
 ```typescript
 const result = await keyManager.getKey({
-  path: 'keys/service_merge.json',
+  path: 'path (full path return from km.newKey)',
   version: 'rotate',
   onRotate: {
     duration: 30,
@@ -209,7 +214,42 @@ const result = await keyManager.getKey({
     rotate: true,
     merge: true,
   },
-});
+}, eventHandlers);
+```
+
+```typescript
+// from 1.0.8 getKey allow user use events
+
+type TGetKeyEvents = {
+  /**
+   * This will fire when key is rotatable but expired and missing options to rotate
+   */
+  onMissingRotateOption: (key: TKeyGenerated, options: TGetKeyOptions) => void | Promise<void>;
+  /**
+   * This will fire when key is invalid includes validate types, from date, to date, etc...
+   */
+  onKeyInvalid: (
+    key: TKeyGenerated,
+    message: string,
+    errorOn?: keyof TKeyGenerated
+  ) => void | Promise<void>;
+  /**
+   * This will fire when key is renewed
+   */
+  onKeyRenewed: (getKey: TGetKey, options: TGetKeyOptions['onRotate']) => void | Promise<void>;
+  /**
+   * This will fire when key file is not found or version is not found in file
+   * @description
+   * IMPORTANT: every file invalid should return `{}` as key data and this will caused this event to be fired
+   * - Invalid file (file not found or not valid json)
+   * - Version not found in file
+   * - From date in future
+   * - Properties in key data is not valid types
+   * - hashedBytes is less than 0
+   */
+  onKeyNotFound: (path: string, version: string | number) => void | Promise<void>;
+  onExpired: (path: string, key: TKeyGenerated) => void | Promise<void>;
+};
 ```
 
 Returned structure:
@@ -222,21 +262,21 @@ Returned structure:
 ```
 
 - `ready` → usable key
-- `expired` → expired key (if rotation occurred)
+- `expired` → expired key
 
 ### Rotate Key (Invalid – Missing Options)
 
 ```typescript
 await keyManager.getKey({
-  path: 'keys/service_merge.json',
+  path: 'path (full path return from km.newKey)',
   version: 'rotate-invalid',
 });
 ```
 
-Throws:
+Return:
 
 ```
-Expired rotate options not provided
+{ expired: null, ready: null }
 ```
 
 ### Non-Rotating Key
@@ -261,6 +301,7 @@ keyManager.useGetKey(async () => {
     to: '2099-12-29T01:23:57.882Z',
     key: '...',
     hashed: '...',
+    hashedBytes: 16,
     type: 'service',
     version: 'version',
     rotate: true,
@@ -269,6 +310,28 @@ keyManager.useGetKey(async () => {
 ```
 
 Return `null` to indicate an invalid or missing key.
+
+## Custom logger
+
+Override how logger work
+
+```typescript 
+km.setLogger((...args: unknown[]) => console.log(...args))
+// or Async
+km.setLogger(async (...args: unknown[]) => console.log(...args))
+
+km.sysLog(...args);
+km.customLog(async (...args: unknown[]) => console.log(...args))
+```
+
+## Clone instance
+
+Clone instance to new instance include custom saveKey, getKey and storePath
+
+```typescript 
+const k = km();
+const k2 = k.clone(options);
+```
 
 ---
 
