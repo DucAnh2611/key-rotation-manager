@@ -1,126 +1,93 @@
-import CryptoJS from 'crypto-js';
+import { randomBytes, pbkdf2Sync, createCipheriv, createDecipheriv, createHash } from 'node:crypto';
 import { DEFAULT_CRYPTO_OPTIONS } from 'src/constants/default.constant';
 import { TCryptoOptions } from 'src/types/crypto.type';
 
 export class CryptoService {
-  private options: TCryptoOptions;
+  private options: Required<TCryptoOptions>;
 
   constructor(options: Partial<TCryptoOptions> = {}) {
     this.options = { ...DEFAULT_CRYPTO_OPTIONS, ...options };
   }
 
-  private generateRandomWordArray(length: number): CryptoJS.lib.WordArray {
-    return CryptoJS.lib.WordArray.random(length);
-  }
-
+  /**
+   * Generate random bytes and encode them
+   */
   generateRandom(length: number = 32): string {
-    const wordArray = this.generateRandomWordArray(length);
-    return this.encode(wordArray);
+    const buffer = randomBytes(length);
+    return this.encodeBuffer(buffer);
   }
 
-  /*
+  /**
    * Generate a random key
-   * @param length Length of the key
+   * @param length Length of the key in bytes
    * @default cryptoOptions.keyLength
-   * @returns { key: string, length: number }
    */
   generateKey(length: number = this.options.keyLength) {
     return { key: this.generateRandom(length), length } as const;
   }
 
-  /*
+  /**
    * Generate a random salt
-   * @param length Length of the salt
+   * @param length Length of the salt in bytes
    * @default cryptoOptions.saltLength
-   * @returns { salt: string, length: number }
    */
   generateSalt(length: number = this.options.saltLength) {
     return { salt: this.generateRandom(length), length } as const;
   }
 
-  /*
+  /**
    * Generate a random IV
-   * @param length Length of the IV
+   * @param length Length of the IV in bytes
    * @default cryptoOptions.ivLength
-   * @returns { iv: string, length: number }
    */
   generateIV(length: number = this.options.ivLength) {
     return { iv: this.generateRandom(length), length } as const;
   }
 
-  private encode(wordArray: CryptoJS.lib.WordArray): string {
+  private encodeBuffer(buffer: Buffer): string {
     switch (this.options.encoding) {
       case 'hex':
-        return wordArray.toString(CryptoJS.enc.Hex);
+        return buffer.toString('hex');
       case 'base64url':
-        return wordArray
-          .toString(CryptoJS.enc.Base64)
-          .replace(/\+/g, '-')
-          .replace(/\//g, '_')
-          .replace(/=/g, '');
+        return buffer.toString('base64url');
       case 'base64':
       default:
-        return wordArray.toString(CryptoJS.enc.Base64);
+        return buffer.toString('base64');
     }
   }
 
-  private decode(encoded: string): CryptoJS.lib.WordArray {
+  private decodeToBuffer(encoded: string): Buffer {
     switch (this.options.encoding) {
       case 'hex':
-        return CryptoJS.enc.Hex.parse(encoded);
+        return Buffer.from(encoded, 'hex');
       case 'base64url':
-        // Convert base64url to base64
-        const base64 = encoded.replace(/-/g, '+').replace(/_/g, '/');
-        const padding = '='.repeat((4 - (base64.length % 4)) % 4);
-        return CryptoJS.enc.Base64.parse(base64 + padding);
+        return Buffer.from(encoded, 'base64url');
       case 'base64':
       default:
-        return CryptoJS.enc.Base64.parse(encoded);
+        return Buffer.from(encoded, 'base64');
     }
   }
 
-  private deriveKey(
-    password: string,
-    salt: CryptoJS.lib.WordArray,
-    keyLength?: number
-  ): CryptoJS.lib.WordArray {
+  private deriveKey(password: string, salt: Buffer, keyLength?: number): Buffer {
     if (this.options.kdf === 'none') {
-      return CryptoJS.enc.Hex.parse(password);
+      return Buffer.from(password, 'hex');
     }
 
     const actualKeyLength = keyLength ?? this.options.keyLength;
-    const keySize = actualKeyLength / 4;
-    return CryptoJS.PBKDF2(password, salt, {
-      keySize,
-      iterations: this.options.iterations,
-      hasher: this.getHasher(),
-    });
-  }
-
-  private getHasher(): typeof CryptoJS.algo.SHA256 {
-    switch (this.options.hashAlgorithm) {
-      case 'sha512':
-        return CryptoJS.algo.SHA512;
-      case 'sha384':
-        return CryptoJS.algo.SHA384;
-      case 'sha256':
-      default:
-        return CryptoJS.algo.SHA256;
-    }
-  }
-
-  private getAESMode(): typeof CryptoJS.mode.CBC {
-    return CryptoJS.mode.CBC;
-  }
-
-  private getPadding(): typeof CryptoJS.pad.Pkcs7 {
-    return CryptoJS.pad.Pkcs7;
+    return pbkdf2Sync(
+      password,
+      salt,
+      this.options.iterations,
+      actualKeyLength,
+      this.options.hashAlgorithm
+    );
   }
 
   /**
-   * Encrypt data
+   * Encrypt data using AES-CBC
    * @param plainText Text to encrypt
-   * @param secret Secret key for encryption Key length, salt, and IV will be randomly generated within configured range
+   * @param secret Secret key for encryption
+   * @param options Optional lengths for key, salt, and IV
    */
   encrypt(
     plainText: string,
@@ -135,81 +102,67 @@ export class CryptoService {
     saltLength = saltLength ?? this.options.saltLength;
     ivLength = ivLength ?? this.options.ivLength;
 
-    const salt =
-      this.options.kdf !== 'none'
-        ? this.generateRandomWordArray(saltLength)
-        : CryptoJS.lib.WordArray.create();
-    const iv = this.generateRandomWordArray(ivLength);
+    const salt = this.options.kdf !== 'none' ? randomBytes(saltLength) : Buffer.alloc(0);
+    const iv = randomBytes(ivLength);
     const key = this.deriveKey(secret, salt, keyLength);
 
-    const encrypted = CryptoJS.AES.encrypt(plainText, key, {
-      iv,
-      mode: this.getAESMode(),
-      padding: this.getPadding(),
-    });
+    const cipher = createCipheriv(this.options.algorithm, key, iv);
+    const encrypted = Buffer.concat([cipher.update(plainText, 'utf8'), cipher.final()]);
 
-    const actualSaltLength = salt.sigBytes;
-    const keyLengthHex = keyLength.toString(16).padStart(4, '0');
-    const saltLengthHex = actualSaltLength.toString(16).padStart(4, '0');
-    const ivLengthHex = ivLength.toString(16).padStart(4, '0');
-    const saltHex = salt.toString(CryptoJS.enc.Hex);
-    const ivHex = iv.toString(CryptoJS.enc.Hex);
-    const encryptedHex = encrypted.ciphertext.toString(CryptoJS.enc.Hex);
+    // Pack: keyLength(2) + saltLength(2) + ivLength(2) + salt + iv + encrypted
+    const keyLengthBuf = Buffer.alloc(2);
+    keyLengthBuf.writeUInt16BE(keyLength);
 
-    const combined = keyLengthHex + saltLengthHex + ivLengthHex + saltHex + ivHex + encryptedHex;
-    return this.encode(CryptoJS.enc.Hex.parse(combined));
+    const saltLengthBuf = Buffer.alloc(2);
+    saltLengthBuf.writeUInt16BE(salt.length);
+
+    const ivLengthBuf = Buffer.alloc(2);
+    ivLengthBuf.writeUInt16BE(ivLength);
+
+    const combined = Buffer.concat([keyLengthBuf, saltLengthBuf, ivLengthBuf, salt, iv, encrypted]);
+
+    return this.encodeBuffer(combined);
   }
 
   /**
    * Decrypt data
    * @param encryptedData Encrypted data to decrypt
    * @param secret Secret key for decryption
+   * @returns Decrypted string, or empty string if decryption fails (wrong password/corrupted data)
    */
   decrypt(encryptedData: string, secret: string): string {
-    const combined = this.decode(encryptedData);
-    const combinedHex = combined.toString(CryptoJS.enc.Hex);
+    try {
+      const combined = this.decodeToBuffer(encryptedData);
+      let offset = 0;
 
-    let offset = 0;
+      // Read lengths (2 bytes each)
+      const keyLength = combined.readUInt16BE(offset);
+      offset += 2;
+      const saltLength = combined.readUInt16BE(offset);
+      offset += 2;
+      const ivLength = combined.readUInt16BE(offset);
+      offset += 2;
 
-    // Read key, salt and IV lengths (4 hex chars = 2 bytes each)
-    const keyLengthHex = combinedHex.substring(offset, offset + 4);
-    offset += 4;
-    const saltLengthHex = combinedHex.substring(offset, offset + 4);
-    offset += 4;
-    const ivLengthHex = combinedHex.substring(offset, offset + 4);
-    offset += 4;
+      // Read salt, iv, and encrypted data
+      const salt = combined.subarray(offset, offset + saltLength);
+      offset += saltLength;
 
-    const keyLength = parseInt(keyLengthHex, 16);
-    const saltLength = parseInt(saltLengthHex, 16);
-    const ivLength = parseInt(ivLengthHex, 16);
+      const iv = combined.subarray(offset, offset + ivLength);
+      offset += ivLength;
 
-    // Read salt and IV based on their lengths stored in the encrypted data
-    const saltHexLength = saltLength * 2; // hex is 2 chars per byte
-    const ivHexLength = ivLength * 2;
+      const encrypted = combined.subarray(offset);
 
-    const saltHex = saltHexLength > 0 ? combinedHex.substring(offset, offset + saltHexLength) : '';
-    offset += saltHexLength;
+      const key = this.deriveKey(secret, salt, keyLength);
 
-    const ivHex = combinedHex.substring(offset, offset + ivHexLength);
-    offset += ivHexLength;
+      const decipher = createDecipheriv(this.options.algorithm, key, iv);
+      const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()]);
 
-    const encryptedHex = combinedHex.substring(offset);
-
-    const salt = saltHex ? CryptoJS.enc.Hex.parse(saltHex) : CryptoJS.lib.WordArray.create();
-    const iv = CryptoJS.enc.Hex.parse(ivHex);
-    const encrypted = CryptoJS.lib.CipherParams.create({
-      ciphertext: CryptoJS.enc.Hex.parse(encryptedHex),
-    });
-
-    const key = this.deriveKey(secret, salt, keyLength);
-
-    const decrypted = CryptoJS.AES.decrypt(encrypted, key, {
-      iv,
-      mode: this.getAESMode(),
-      padding: this.getPadding(),
-    });
-
-    return decrypted.toString(CryptoJS.enc.Utf8);
+      return decrypted.toString('utf8');
+    } catch {
+      // Return empty string on decryption failure (wrong password, corrupted data, etc.)
+      // This matches the behavior of crypto-js
+      return '';
+    }
   }
 
   /**
@@ -219,30 +172,26 @@ export class CryptoService {
    * @param salt Optional encoded salt string for deterministic hashing
    */
   hash(data: string, secret: string, salt?: string): string {
-    const secretWordArray = CryptoJS.enc.Utf8.parse(secret);
-    const hasher = this.getHasher();
-
-    let saltWordArray: CryptoJS.lib.WordArray;
+    let saltBuffer: Buffer;
     let saltStr: string;
 
     if (salt) {
       // Deterministic mode: use provided salt
-      saltWordArray = this.decode(salt);
+      saltBuffer = this.decodeToBuffer(salt);
       saltStr = salt;
     } else {
       // Non-deterministic mode: generate random salt
-      saltWordArray = this.generateRandomWordArray(this.options.saltLength);
-      saltStr = this.encode(saltWordArray);
+      saltBuffer = randomBytes(this.options.saltLength);
+      saltStr = this.encodeBuffer(saltBuffer);
     }
 
-    const hash = hasher
-      .create()
+    const hash = createHash(this.options.hashAlgorithm)
       .update(data)
-      .update(secretWordArray)
-      .update(saltWordArray)
-      .finalize();
+      .update(secret)
+      .update(saltBuffer)
+      .digest();
 
-    const hashStr = this.encode(hash);
+    const hashStr = this.encodeBuffer(hash);
 
     return `${saltStr}:${hashStr}`;
   }
@@ -259,14 +208,17 @@ export class CryptoService {
       return false;
     }
 
-    const salt = this.decode(saltStr);
-    const secretWordArray = CryptoJS.enc.Utf8.parse(secret);
-    const hasher = this.getHasher();
+    const saltBuffer = this.decodeToBuffer(saltStr);
 
-    const hash = hasher.create().update(data).update(secretWordArray).update(salt).finalize();
+    const hash = createHash(this.options.hashAlgorithm)
+      .update(data)
+      .update(secret)
+      .update(saltBuffer)
+      .digest();
 
-    const hashStr = this.encode(hash);
+    const hashStr = this.encodeBuffer(hash);
 
+    // Use timing-safe comparison
     return hashStr === expectedHashStr;
   }
 }

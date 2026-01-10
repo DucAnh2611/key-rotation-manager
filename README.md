@@ -615,7 +615,8 @@ Sets a single hook.
 
 See the full changelog for each version:
 
-- **[v1.0.10](./changelogs/1.0.10.md)** - Hooks system, enhanced gitIgnore configuration
+- **[v1.1.0](https://github.com/DucAnh2611/key-rotation-manager/tree/master/changelogs/1.1.0.md)** - Native crypto, zero dependencies, bug fixes
+- **[v1.0.10](https://github.com/DucAnh2611/key-rotation-manager/tree/master/changelogs/1.0.10.md)** - Hooks system, enhanced gitIgnore configuration
 
 ---
 
@@ -648,7 +649,7 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License - see the [LICENSE](https://github.com/DucAnh2611/key-rotation-manager/blob/master/LICENSE) file for details.
 
 ---
 

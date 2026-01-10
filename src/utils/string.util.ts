@@ -85,8 +85,7 @@ export const isType = (data?: unknown) => {
   return {
     number: typeof data === 'number' && !Number.isNaN(Number(data)),
     string: typeof data === 'string',
-    stringNumber:
-      (typeof data === 'string' && !Number.isNaN(Number(data))) || typeof data === 'number',
+    stringNumber: typeof data === 'string' || typeof data === 'number',
     boolean: typeof data === 'boolean',
     null: data === null,
     undefined: data === undefined,

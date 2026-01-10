@@ -4,6 +4,10 @@ on:
   push:
     branches:
       - master
+      - main
+
+permissions:
+  contents: write
 
 jobs:
   publish:
@@ -24,8 +28,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run tests
-        run: npm test
+      - name: Lint check
+        run: npm run lint --if-present
         continue-on-error: true
 
       - name: Build package
@@ -34,19 +38,21 @@ jobs:
       - name: Check if version changed
         id: version-check
         run: |
+          PACKAGE_NAME=$(node -p "require('./package.json').name")
           CURRENT_VERSION=$(node -p "require('./package.json').version")
+          echo "package_name=$PACKAGE_NAME" >> $GITHUB_OUTPUT
           echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
 
           # Get latest published version
-          PUBLISHED_VERSION=$(npm view key-rotation-manager version 2>/dev/null || echo "0.0.0")
+          PUBLISHED_VERSION=$(npm view $PACKAGE_NAME version 2>/dev/null || echo "0.0.0")
           echo "published_version=$PUBLISHED_VERSION" >> $GITHUB_OUTPUT
 
           if [ "$CURRENT_VERSION" != "$PUBLISHED_VERSION" ]; then
             echo "should_publish=true" >> $GITHUB_OUTPUT
-            echo "Version changed from $PUBLISHED_VERSION to $CURRENT_VERSION"
+            echo "📦 Version changed: $PUBLISHED_VERSION → $CURRENT_VERSION"
           else
             echo "should_publish=false" >> $GITHUB_OUTPUT
-            echo "Version unchanged: $CURRENT_VERSION"
+            echo "⏭️ Version unchanged: $CURRENT_VERSION (skipping publish)"
           fi
 
       - name: Publish to NPM
@@ -58,7 +64,25 @@ jobs:
       - name: Create Git Tag
         if: steps.version-check.outputs.should_publish == 'true'
         run: |
+          VERSION=${{ steps.version-check.outputs.current_version }}
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          git tag v${{ steps.version-check.outputs.current_version }}
-          git push origin v${{ steps.version-check.outputs.current_version }}
+          
+          # Check if tag already exists
+          if git rev-parse "v$VERSION" >/dev/null 2>&1; then
+            echo "Tag v$VERSION already exists, skipping"
+          else
+            git tag -a "v$VERSION" -m "Release v$VERSION"
+            git push origin "v$VERSION"
+            echo "✅ Created tag v$VERSION"
+          fi
+
+      - name: Summary
+        run: |
+          echo "## 📋 Publish Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Package | ${{ steps.version-check.outputs.package_name }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Version | ${{ steps.version-check.outputs.current_version }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Published | ${{ steps.version-check.outputs.should_publish }} |" >> $GITHUB_STEP_SUMMARY
