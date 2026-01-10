@@ -615,7 +615,7 @@ Sets a single hook.
 
 See the full changelog for each version:
 
-- **[v1.1.0](https://github.com/DucAnh2611/key-rotation-manager/tree/master/changelogs/1.1.0.md)** - Native crypto, zero dependencies, bug fixes
+- **[v1.1.1](https://github.com/DucAnh2611/key-rotation-manager/tree/master/changelogs/1.1.1.md)** - Native crypto, zero dependencies, bug fixes
 - **[v1.0.10](https://github.com/DucAnh2611/key-rotation-manager/tree/master/changelogs/1.0.10.md)** - Hooks system, enhanced gitIgnore configuration
 
 ---
