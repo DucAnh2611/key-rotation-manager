@@ -1,6 +1,6 @@
-import { EEvent, TEvents, TGetKeyFn, TSaveKeyFn, TStoreOptions } from 'src/types';
+import { EEvent, TEvents, TFormatUsable, TGetKeyFn, TSaveKeyFn, TStoreOptions } from 'src/types';
 import { ConfigEvents } from './config-events.core';
-import { FileUtil } from 'src/utils/file.util';
+import { FileUtil } from 'src/utils';
 import { DEFAULT_STORE_OPTIONS } from 'src/constants/default.constant';
 import { join } from 'path';
 import { TKeyGenerated } from 'src/types/key-manager.types';
@@ -111,7 +111,7 @@ export class Store extends ConfigEvents {
     };
 
     if (this.sOptions.gitIgnore) {
-      const gitignore = await this.addStoreFolderToGitignore();
+      const gitignore = await this.addStoreFolderGitignore();
       eventEmitPayload = { ...eventEmitPayload, ...gitignore };
     }
 
@@ -133,35 +133,60 @@ export class Store extends ConfigEvents {
     }
   }
 
-  private async addStoreFolderToGitignore(): Promise<
+  private async addStoreFolderGitignore(): Promise<
     Omit<TEvents[EEvent.STORE_INIT_FOLDER], 'storePath'>
   > {
     const gitignorePath = join(process.cwd(), '.gitignore');
     const gitignoreContent = await this.fileUtil.read(gitignorePath);
 
-    const storePath = this.getPath(this.sOptions.path, '/');
-    const filePath = this.getPath(this.sOptions.file, this.sOptions.fileSplitor);
+    const folder = this.getStoreFolderGitignore();
+    const gitignoreLines = gitignoreContent.split(/\r?\n/).map((line) => line.trim());
+    const hasExactLine = gitignoreLines.some((line) => line === folder);
 
-    let folder: string[] | string = [];
-    folder.push(storePath.replace(/\{\{.*?\}\}/g, '*'));
-    folder.push(`${filePath.replace(/\{\{.*?\}\}/g, '*')}.${this.sOptions.fileExt}`);
-
-    folder = folder.join('/');
-
-    if (!gitignoreContent.includes(`${folder}`)) {
-      await this.fileUtil.write(gitignorePath, `${gitignoreContent ? '\r' : ''}${folder}`, 'a');
+    if (!hasExactLine) {
+      await this.fileUtil.write(gitignorePath, `${gitignoreContent ? '\r\n' : ''}${folder}`, 'a');
 
       return {
         gitIgnoreStorePath: folder,
         gitIgnorePath: gitignorePath,
         gitIgnoreAddStatus: 'added',
       };
-    } else {
-      return {
-        gitIgnoreStorePath: folder,
-        gitIgnorePath: gitignorePath,
-        gitIgnoreAddStatus: 'already',
-      };
     }
+
+    return {
+      gitIgnoreStorePath: folder,
+      gitIgnorePath: gitignorePath,
+      gitIgnoreAddStatus: 'already',
+    };
+  }
+
+  private getStoreFolderGitignore() {
+    let folder = '';
+    const storePath = this.getPath(this.sOptions.path, '/');
+
+    if (typeof this.sOptions.gitIgnore === 'boolean') {
+      folder = this.getStoreFolderGitignoreByDefault(storePath);
+    } else {
+      folder = this.addStoreFolderGitignoreByCustom(this.sOptions.gitIgnore);
+    }
+
+    return this.replaceVariableToStar(folder);
+  }
+
+  private getStoreFolderGitignoreByDefault(storePath: string) {
+    const filePath = this.getPath(this.sOptions.file, this.sOptions.fileSplitor);
+
+    const folder: string[] = [storePath];
+    folder.push(`${filePath}.${this.sOptions.fileExt}`);
+
+    return folder.join('/');
+  }
+
+  private addStoreFolderGitignoreByCustom(ignorePath: TFormatUsable) {
+    return this.getPath(ignorePath, '/');
+  }
+
+  private replaceVariableToStar(path: string): string {
+    return path.replace(/\{\{.*?\}\}/g, '*');
   }
 }

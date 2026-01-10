@@ -1,4 +1,4 @@
-import { TModuleOptions } from 'src/types';
+import { TModuleHooks, TModuleOptions } from 'src/types';
 import { DEFAULT_MODULE_OPTIONS } from 'src/constants/default.constant';
 import { KeyManager } from './key-manager.core';
 
@@ -39,8 +39,22 @@ export class KM extends KeyManager {
     if (this.getKeyFn) module.useGetKey(this.getKeyFn);
     if (this.storePath) module.useStorePath(this.storePath);
 
+    module.setHooks(this.getHooks());
     module.setLogger(this.getLogger());
 
     return module;
+  }
+
+  public useHooks(hooks: Partial<{ [x in keyof TModuleHooks]: TModuleHooks[x] }>) {
+    this.setHooks(hooks);
+    return this;
+  }
+
+  public setHook<HookName extends keyof TModuleHooks>(
+    name: HookName,
+    handler: TModuleHooks[HookName]
+  ) {
+    this.setHooks({ [name]: handler });
+    return this;
   }
 }

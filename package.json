@@ -40,13 +40,11 @@
     "@types/node": "^18.19.74",
     "@typescript-eslint/eslint-plugin": "^8.28.0",
     "@typescript-eslint/parser": "^8.28.0",
-    "@vitest/ui": "^4.0.16",
     "prettier": "^3.3.3",
     "rimraf": "^5.0.7",
     "tsup": "^8.5.1",
     "tsx": "^4.19.2",
-    "typescript": "^5.4.5",
-    "vitest": "^4.0.16"
+    "typescript": "^5.4.5"
   },
   "dependencies": {
     "crypto-js": "^4.2.0"

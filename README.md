@@ -1,98 +1,106 @@
-# Rotate Key
+# 🔐 Key Rotation Manager
 
-Flexible, file-based key management for Node.js.  
-It helps you **generate, store, rotate, and retrieve cryptographic keys** with support for expiration, versioning, merge strategies, custom storage logic, and lifecycle events.
+> **Flexible, file-based cryptographic key management for Node.js**
 
-This library is designed for backend systems that need safe, extensible, and transparent key handling.
+A production-ready library for generating, storing, rotating, and retrieving cryptographic keys with support for expiration, versioning, merge strategies, custom storage logic, and lifecycle hooks.
 
----
-
-## Issues & Bug Reports
-
-Found a bug or have a feature request?
-
-**[🐛 Report an Issue](https://github.com/DucAnh2611/key-rotation-manager/issues/new)**
-
-Please include:
-- A clear description of the issue
-- Steps to reproduce
-- Expected vs actual behavior
-- Your environment (Node.js version, OS, package version)
-- Code samples if applicable
+[![npm version](https://img.shields.io/npm/v/key-rotation-manager)](https://www.npmjs.com/package/key-rotation-manager)
+[![Node.js](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen)](https://nodejs.org/)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 ---
 
-## Features
+## 📋 Table of Contents
 
-- 🔐 Secure key generation (AES-256-GCM by default)
-- 🔄 Key expiration & rotation
-- 🗂 File-based storage with configurable structure
-- 🧩 Merge & non-merge key strategies
-- 🔧 Custom save & get hooks
-- 📡 Event-driven lifecycle
-- 📁 Automatic `.gitignore` integration
+- [Features](#-features)
+- [Installation](#-installation)
+- [Quick Start](#-quick-start)
+- [Configuration](#-configuration)
+- [Core Concepts](#-core-concepts)
+  - [Creating Keys](#creating-keys)
+  - [Retrieving Keys](#retrieving-keys)
+  - [Key Rotation](#key-rotation)
+- [Advanced Usage](#-advanced-usage)
+  - [Custom Storage Logic](#custom-storage-logic)
+  - [Custom Path & File Naming](#custom-path--file-naming)
+  - [Hooks & Lifecycle Events](#hooks--lifecycle-events)
+  - [Logging](#logging)
+  - [Instance Cloning](#instance-cloning)
+- [API Reference](#-api-reference)
+- [Use Cases](#-use-cases)
+- [Changelog](#-changelog)
+- [Contributing](#-contributing)
+- [License](#-license)
 
 ---
 
-## Installation
+## ✨ Features
+
+- 🔐 **Secure Key Generation** - AES-256-CBC encryption with PBKDF2 key derivation
+- 🔄 **Automatic Rotation** - Built-in expiration and rotation support
+- 🗂 **Flexible Storage** - File-based storage with configurable structure
+- 🧩 **Merge Strategies** - Support for single-file or multi-file key storage
+- 🔧 **Extensible** - Custom save/get hooks and storage logic
+- 📡 **Event-Driven** - Lifecycle hooks for key events
+- 📁 **Git Integration** - Automatic `.gitignore` management
+- 🎯 **TypeScript** - Full TypeScript support with comprehensive types
+
+---
+
+## 📦 Installation
 
 ```bash
 npm install key-rotation-manager
 ```
 
+**Requirements:** Node.js >= 18.0.0
+
 ---
 
-## Quick Start
+## 🚀 Quick Start
 
 ```typescript
-import { create, km } from 'key-rotation-manager';
+import { create } from 'key-rotation-manager';
 
-const keyManager = create({});
-// or 
-const keyManager = km({});
+// Initialize key manager
+const keyManager = create();
 
+// Generate a new key
 const { key, path } = await keyManager.newKey({
   type: 'api',
-  ...options
+  duration: 30,
+  unit: 'days',
+  rotate: true,
+});
+
+console.log('Key generated:', key.key);
+console.log('Storage path:', path);
+
+// Retrieve the key
+const result = await keyManager.getKey({
+  path,
+  version: key.version,
 });
 ```
 
-This will:
-- Create a `keys/` directory base on `{{path}}/{{filename}}.{{fileExt}}`
-- Generate a new key
-- Save it using default storage rules
-
 ---
 
-## Basic Usage
+## ⚙️ Configuration
 
-### Initialize KeyManager
-
-```typescript
-import { create, km } from 'key-rotation-manager';
-
-const keyManager = create();
-// or 
-const keyManager = km();
-```
-
-On initialization:
-- The key storage folder is created
-- `.gitignore` is updated (if enabled)
-- A store initialization event is emitted
-
-### Default Configuration
+### Default Options
 
 ```typescript
 {
-  path: ['keys', '{{type}}'], // FROM 1.0.8 allow using variable: {{...}}
-  file: ['v', '{{version}}'],
-  fileSplitor: '_',
-  fileExt: 'json',
-  gitIgnore: true, // add resolved path to .gitignore
+  // Storage configuration
+  path: ['keys', '{{type}}'],        // Directory structure (supports variables)
+  file: ['v', '{{version}}'],        // File naming pattern
+  fileSplitor: '_',                  // File name separator
+  fileExt: 'json',                   // File extension
+  gitIgnore: true,          // Auto-update .gitignore (boolean | string | string[])
 
+  // Cryptographic settings
   crypto: {
-    algorithm: 'aes-256-gcm',
+    algorithm: 'aes-256-cbc',
     kdf: 'pbkdf2',
     hashAlgorithm: 'sha256',
     keyLength: 32,
@@ -103,6 +111,7 @@ On initialization:
     encoding: 'base64',
   },
 
+  // Version generation
   versionGenerator: () => Date.now().toString()
 }
 ```
@@ -117,259 +126,530 @@ keys/
     └── v_{{version}}.json
 ```
 
----
+**Example:** `keys/api/v_1704067200000.json`
 
-## Creating Keys
+### Git Ignore Configuration
 
-### 1. Non-expiring Key
+The `gitIgnore` option controls how the key storage folder is added to `.gitignore`.
+
+**Type:** `boolean | string | string[]`
+
+| Value | Behavior |
+|-------|----------|
+| `false` | Disable auto-update `.gitignore` |
+| `true` | Uses `path + file + fileExt` pattern |
+| `string \| string[]` | Uses custom path pattern |
+
+**Default:** `true` → adds `path + file + fileExt` to `.gitignore`
+
+**Variable Replacement:** Any `{{variable}}` in the path will be replaced with `*` in `.gitignore`.
+
+**Wildcard Support:** You can use `'*'` directly in the path array for explicit wildcard matching.
+
+**Examples:**
 
 ```typescript
-const { key } = await km.newKey({
+// Disable gitignore management
+const km1 = create({ gitIgnore: false });
+
+// Use full path pattern (path + file + fileExt)
+const km2 = create({ gitIgnore: true });
+// .gitignore: keys/{{type}}/v_{{version}}.json → keys/*/v_*.json
+
+// Custom folder with wildcard (default)
+const km3 = create({ gitIgnore: ['keys', '*'] });
+// .gitignore: keys/*
+
+// Custom path with variables
+const km4 = create({ gitIgnore: ['secrets', '{{env}}', 'keys'] });
+// .gitignore: secrets/*/keys
+
+// Custom path with explicit wildcard
+const km5 = create({ gitIgnore: ['keys', '{{type}}', '*'] });
+// .gitignore: keys/*/*
+
+// Simple string
+const km6 = create({ gitIgnore: 'keys' });
+// .gitignore: keys
+```
+
+---
+
+## 📚 Core Concepts
+
+### Creating Keys
+
+#### 1. Non-Expiring Key
+
+```typescript
+const { key, path } = await keyManager.newKey({
   type: 'service',
 });
 ```
 
-### 2. Expiring / Rotating Key
+#### 2. Expiring Key with Rotation
 
 ```typescript
-const { key } = await km.newKey({
-  type: 'service',
+const { key, path } = await keyManager.newKey({
+  type: 'api',
   duration: 30,
-  unit: 'seconds',
+  unit: 'days',      // 'seconds' | 'minutes' | 'hours' | 'days'
+  rotate: true,      // Enable automatic rotation
+});
+```
+
+#### 3. Merge Strategy (Single File)
+
+Store multiple key versions in a single file:
+
+```typescript
+const { key, path } = await keyManager.newKey({
+  type: 'service',
+  merge: true,       // Store all versions in one file
+  duration: 7,
+  unit: 'days',
   rotate: true,
 });
 ```
 
-The key expires after 30 seconds and requires rotation.
+### Retrieving Keys
 
-### 3. Merge Strategy
-
-Merge mode stores multiple key versions in a single file.
+#### Basic Retrieval
 
 ```typescript
-const { key } = await keyManager.newKey({
-  type: 'service',
-  merge: true, // Merge into 1 file {{path}}/{filename}
-  ...options,
+const result = await keyManager.getKey({
+  path: '/path/to/key/file',
+  version: 'v1',
 });
+
+// Result structure
+{
+  ready: TKeyGenerated | null,    // Valid, usable key
+  expired: TKeyGenerated | null   // Expired key (if rotation occurred)
+}
+```
+
+#### Key Rotation
+
+When a key is expired and rotatable, provide rotation options:
+
+```typescript
+const result = await keyManager.getKey({
+  path: '/path/to/key/file',
+  version: 'v1',
+  onRotate: {
+    duration: 30,
+    unit: 'days',
+    rotate: true,
+    merge: true,      // Optional: merge strategy for new key
+  },
+});
+
+if (result.expired) {
+  console.log('Key was rotated');
+  console.log('Old version:', result.expired.version);
+  console.log('New version:', result.ready?.version);
+}
+```
+
+#### Handling Missing Keys
+
+```typescript
+const result = await keyManager.getKey({
+  path: '/path/to/key/file',
+  version: 'v1',
+});
+
+if (!result.ready) {
+  // Key not found or invalid
+  console.log('Key unavailable');
+}
+```
+
+### Key Rotation
+
+Key rotation occurs automatically when:
+
+1. A key is expired (`to` date has passed)
+2. The key has `rotate: true`
+3. `onRotate` options are provided in `getKey()`
+
+**Rotation Flow:**
+
+```
+Expired Key → Check rotate flag → Generate new key → Return both keys
 ```
 
 ---
 
-## Custom Path & File Naming
+## 🔧 Advanced Usage
+
+### Custom Storage Logic
+
+#### Custom Get Logic
+
+Override how keys are retrieved:
+
+```typescript
+keyManager.useGetKey(async (path, version) => {
+  // Your custom retrieval logic
+  const data = await fetchFromDatabase(path, version);
+  
+  if (!data) return null;
+  
+  return {
+    from: data.createdAt,
+    to: data.expiresAt,
+    key: data.rawKey,
+    hashed: data.hashedKey,
+    hashedBytes: 32,
+    type: data.type,
+    version: data.version,
+    rotate: data.rotate,
+  };
+});
+```
+
+#### Custom Save Logic
+
+Override how keys are saved:
+
+```typescript
+keyManager.useSaveKey(async (keyData, options) => {
+  // Your custom save logic
+  const savedPath = await saveToDatabase(keyData);
+  return savedPath; // This becomes key.path
+});
+```
+
+### Custom Path & File Naming
+
+Use variables in path and file names:
+
+```typescript
+const keyManager = create({
+  path: ['keys', '{{type}}', '{{env}}'],
+  file: ['{{version}}', '{{region}}'],
+  fileExt: 'json',
+});
+
+const { key, path } = await keyManager.newKey(
+  {
+    type: 'api',
+  },
+  {
+    env: 'production',
+    region: 'us-east-1',
+  }
+);
+
+// Result: keys/api/production/1704067200000_us-east-1.json
+```
+
+**Available Variables:**
+- `{{type}}` - Key type
+- `{{version}}` - Key version
+- Any custom variables passed to `newKey()`
+
+### Hooks & Lifecycle Events
+
+> **Available since v1.0.10**
+
+Hooks allow you to execute custom logic when specific key lifecycle events occur.
+
+#### Available Hooks
+
+**Key Manager Hooks:**
+
+| Hook | Description | Parameters |
+|------|-------------|------------|
+| `onKeyNotFound` | Fires when key file is not found or version doesn't exist | `(path: string, version: string \| number)` |
+| `onKeyInvalid` | Fires when key validation fails | `(key: TKeyGenerated, message: string, errorOn?: keyof TKeyGenerated)` |
+| `onKeyMissingRotateOption` | Fires when expired key needs rotation but options are missing | `(key: TKeyGenerated, options: TGetKeyOptions)` |
+| `onKeyRenewed` | Fires when a key is successfully rotated | `(getKey: TGetKey, options: TGetKeyOptions)` |
+| `onKeyExpired` | Fires when a key expires but is not renewable | `(path: string, key: TKeyGenerated)` |
+
+**Base Hooks:**
+
+| Hook | Description | Parameters |
+|------|-------------|------------|
+| `onHookNotFound` | Fires when a hook is called but not registered | `(name: string)` |
+| `onHookOverriding` | Fires when a hook is being overridden | `(name: string)` |
+
+#### Setting Hooks
+
+**Set Multiple Hooks:**
+
+```typescript
+keyManager.useHooks({
+  onKeyNotFound: (path, version) => {
+    console.log(`Key not found: ${path}@${version}`);
+  },
+  onKeyInvalid: (key, message, errorOn) => {
+    console.error(`Invalid key: ${message}`, { errorOn, key });
+  },
+  onKeyRenewed: (getKey, options) => {
+    console.log('Key renewed:', {
+      expired: getKey.expired?.version,
+      ready: getKey.ready?.version,
+    });
+  },
+});
+```
+
+**Set Single Hook:**
+
+```typescript
+keyManager.setHook('onKeyRenewed', (getKey, options) => {
+  console.log('Key was renewed successfully');
+});
+```
+
+**Async Hooks:**
+
+```typescript
+keyManager.setHook('onKeyRenewed', async (getKey, options) => {
+  await sendNotification({
+    message: 'Key was rotated',
+    expiredVersion: getKey.expired?.version,
+    newVersion: getKey.ready?.version,
+  });
+});
+
+keyManager.setHook('onKeyInvalid', async (key, message, errorOn) => {
+  await logToDatabase({
+    event: 'key_invalid',
+    message,
+    errorOn,
+    keyVersion: key.version,
+  });
+});
+```
+
+#### Complete Hook Example
 
 ```typescript
 import { create } from 'key-rotation-manager';
 
 const keyManager = create({
-  path: ['keys', '{{type}}'],
-  file: ['{{version}}', '{{custom_variables}}'],
-  fileExt: 'txt',
-  ...options,
+  versionGenerator: () => 'v1',
+});
+
+// Configure all hooks
+keyManager.useHooks({
+  onKeyNotFound: (path, version) => {
+    console.log(`[Hook] Key not found: ${path}@${version}`);
+  },
+  onKeyInvalid: (key, message, errorOn) => {
+    console.error(`[Hook] Invalid key: ${message}`, {
+      version: key.version,
+      errorOn,
+    });
+  },
+  onKeyRenewed: async (getKey, options) => {
+    console.log('[Hook] Key renewed:', {
+      from: getKey.expired?.version,
+      to: getKey.ready?.version,
+    });
+    // Perform async operations (notifications, logging, etc.)
+  },
+  onKeyMissingRotateOption: (key, options) => {
+    console.warn(`[Hook] Missing rotate option for key: ${key.version}`);
+  },
+  onKeyExpired: (path, key) => {
+    console.log(`[Hook] Key expired: ${path}@${key.version}`);
+  },
+});
+
+// Use the key manager
+const result = await keyManager.getKey({
+  path: '/keys/api',
+  version: 'v1',
 });
 ```
 
-Resulting structure:
+### Logging
 
-```
-path: ['keys', '{{type}}']
-file: ['{{version}}', '{{custom_variables}}']
-fileExt: "txt"
-type: "service"
-variables: { custom_variables: "example" }
-
-getKey({ type }, variables) -> keys/service/17000000000_example.txt
-
->> .gitignore
-keys/*/*_*.txt
-```
-
----
-
-## Custom Save Logic
-
-Override how and where keys are saved:
+#### Custom Logger
 
 ```typescript
-keyManager.useSaveKey(async () => {
-  return '/absolute/custom/path/key.json';
+// Synchronous logger
+keyManager.setLogger((...args) => {
+  console.log('[KeyManager]', ...args);
+});
+
+// Async logger
+keyManager.setLogger(async (...args) => {
+  await logToService(...args);
 });
 ```
 
-The returned value becomes `key.path`.
+#### System Logging
+
+```typescript
+await keyManager.sysLog('Key operation completed');
+```
+
+#### Custom Logging
+
+```typescript
+await keyManager.customLog(async (...args) => {
+  await customLoggingService.log(...args);
+}, 'Log message');
+```
+
+### Instance Cloning
+
+Create a new instance with shared configuration:
+
+```typescript
+const original = create({ versionGenerator: () => 'v1' });
+
+// Clone with additional options
+const cloned = original.clone({
+  path: ['custom', 'keys'],
+});
+
+// Cloned instance includes:
+// - Custom save/get hooks
+// - Store path configuration
+// - Logger settings
+// - Hooks settings
+```
 
 ---
 
-## Retrieving Keys
+## 📖 API Reference
 
-### Rotate Key (Valid)
+### `create(options?, only?)`
 
+Creates a new KeyManager instance.
+
+**Parameters:**
+- `options` (optional): Partial `TModuleOptions`
+- `only` (optional): `boolean` - If `false`, returns a singleton instance
+
+**Returns:** `KM` instance
+
+**Example:**
+```typescript
+const km = create({ versionGenerator: () => 'v1' });
+// or
+const km = create({}, false); // Singleton instance
+```
+
+### `newKey(options, variables?)`
+
+Generates a new cryptographic key.
+
+**Parameters:**
+- `options`: `TGenerateKeyOptions`
+  - `type`: `string` - Key type identifier
+  - `duration?`: `number` - Expiration duration
+  - `unit?`: `'seconds' | 'minutes' | 'hours' | 'days'` - Time unit
+  - `rotate?`: `boolean` - Enable rotation
+  - `merge?`: `boolean` - Merge strategy
+  - `keyLength?`: `number` - Key length in bytes
+- `variables?`: `TKeyVariables` - Custom variables for path/file naming
+
+**Returns:** `Promise<{ key: TKeyGenerated, path: string }>`
+
+### `getKey(options)`
+
+Retrieves a key by path and version.
+
+**Parameters:**
+- `options`: `TGetKeyOptions`
+  - `path`: `string` - Storage path
+  - `version`: `string` - Key version
+  - `onRotate?`: Rotation options (if key is expired and rotatable)
+
+**Returns:** `Promise<TGetKey>`
+
+**Example:**
 ```typescript
 const result = await keyManager.getKey({
-  path: 'path (full path return from km.newKey)',
-  version: 'rotate',
+  path: '/keys/api',
+  version: 'v1',
   onRotate: {
     duration: 30,
-    unit: 'seconds',
+    unit: 'days',
     rotate: true,
-    merge: true,
   },
-}, eventHandlers);
-```
-
-```typescript
-// from 1.0.8 getKey allow user use events
-
-type TGetKeyEvents = {
-  /**
-   * This will fire when key is rotatable but expired and missing options to rotate
-   */
-  onMissingRotateOption: (key: TKeyGenerated, options: TGetKeyOptions) => void | Promise<void>;
-  /**
-   * This will fire when key is invalid includes validate types, from date, to date, etc...
-   */
-  onKeyInvalid: (
-    key: TKeyGenerated,
-    message: string,
-    errorOn?: keyof TKeyGenerated
-  ) => void | Promise<void>;
-  /**
-   * This will fire when key is renewed
-   */
-  onKeyRenewed: (getKey: TGetKey, options: TGetKeyOptions['onRotate']) => void | Promise<void>;
-  /**
-   * This will fire when key file is not found or version is not found in file
-   * @description
-   * IMPORTANT: every file invalid should return `{}` as key data and this will caused this event to be fired
-   * - Invalid file (file not found or not valid json)
-   * - Version not found in file
-   * - From date in future
-   * - Properties in key data is not valid types
-   * - hashedBytes is less than 0
-   */
-  onKeyNotFound: (path: string, version: string | number) => void | Promise<void>;
-  onExpired: (path: string, key: TKeyGenerated) => void | Promise<void>;
-};
-```
-
-Returned structure:
-
-```typescript
-{
-  ready: Key | null,
-  expired: Key | null
-}
-```
-
-- `ready` → usable key
-- `expired` → expired key
-
-### Rotate Key (Invalid – Missing Options)
-
-```typescript
-await keyManager.getKey({
-  path: 'path (full path return from km.newKey)',
-  version: 'rotate-invalid',
 });
 ```
 
-Return:
+### `useHooks(hooks)`
 
-```
-{ expired: null, ready: null }
-```
+Sets multiple hooks at once.
 
-### Non-Rotating Key
+**Parameters:**
+- `hooks`: `Partial<TModuleHooks>`
 
-```typescript
-const result = await keyManager.getKey({
-  path: 'path (full path return from km.newKey)',
-  version: 'version',
-});
-```
+**Returns:** `this` (chainable)
 
----
+### `setHook(name, handler)`
 
-## Custom Get Logic
+Sets a single hook.
 
-Override how keys are retrieved:
+**Parameters:**
+- `name`: `keyof TModuleHooks`
+- `handler`: `TModuleHooks[K]`
 
-```typescript
-keyManager.useGetKey(async () => {
-  return {
-    from: '2025-12-29T01:23:27.882Z',
-    to: '2099-12-29T01:23:57.882Z',
-    key: '...',
-    hashed: '...',
-    hashedBytes: 16,
-    type: 'service',
-    version: 'version',
-    rotate: true,
-  };
-});
-```
-
-Return `null` to indicate an invalid or missing key.
-
-## Custom logger
-
-Override how logger work
-
-```typescript 
-km.setLogger((...args: unknown[]) => console.log(...args))
-// or Async
-km.setLogger(async (...args: unknown[]) => console.log(...args))
-
-km.sysLog(...args);
-km.customLog(async (...args: unknown[]) => console.log(...args))
-```
-
-## Clone instance
-
-Clone instance to new instance include custom saveKey, getKey and storePath
-
-```typescript 
-const k = km();
-const k2 = k.clone(options);
-```
+**Returns:** `this` (chainable)
 
 ---
 
-## Events
+## 🎯 Use Cases
 
-KeyManager emits lifecycle events.
-
-### Store Initialization Event
-
-```typescript
-import { create, types } from 'rotate-key';
-const { EEvent } = types;
-const keyManager = create({});
-
-keyManager.once(EEvent.STORE_INIT_FOLDER, ({ storePath }) => {
-  console.log('Key store initialized at:', storePath);
-});
-```
+- **API Key Management** - Secure storage and rotation of API keys
+- **Token Rotation** - Automatic credential rotation for services
+- **Secret Management** - File-based secret storage with expiration
+- **Multi-Version Keys** - Support for multiple key versions simultaneously
+- **Custom Persistence** - Integrate with databases or cloud storage
+- **Backend Services** - Production-ready key management for Node.js applications
 
 ---
 
-## Use Cases
+## 📝 Changelog
 
-- API key management
-- Token & credential rotation
-- Secure file-based secrets
-- Multi-version key handling
-- Custom persistence strategies
-- Backend Node.js services
+See the full changelog for each version:
+
+- **[v1.0.10](./changelogs/1.0.10.md)** - Hooks system, enhanced gitIgnore configuration
 
 ---
 
-## Contributing
+## 🐛 Issues & Bug Reports
+
+Found a bug or have a feature request?
+
+**[🐛 Report an Issue](https://github.com/DucAnh2611/key-rotation-manager/issues/new)**
+
+Please include:
+- Clear description of the issue
+- Steps to reproduce
+- Expected vs actual behavior
+- Environment details (Node.js version, OS, package version)
+- Code samples if applicable
+
+---
+
+## 🤝 Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
 ---
 
-## License
+## 📄 License
 
-MIT
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+---
+
+**Made with ❤️ for secure key management**

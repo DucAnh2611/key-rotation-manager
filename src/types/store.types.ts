@@ -2,7 +2,7 @@ import { TCryptoOptions } from './crypto.type';
 import { TEventsOptions } from './events.types';
 import { TKeyBindValues, TKeyGenerated } from './key-manager.types';
 
-type TKeyFileFormat = `{{${keyof TKeyBindValues}}}` | (string & {});
+type TKeyFileFormat = `{{${keyof TKeyBindValues}}}` | '*' | '**' | (string & {});
 
 export type TFormatUsable = Array<TKeyFileFormat> | TKeyFileFormat;
 
@@ -33,12 +33,19 @@ export type TStoreOptions = TEventsOptions & {
 
   /**
    * Add keys folder to .gitignore file
-   * @default true
-   * if path is having {{variables}}, this will convert {{variables}} to *
+   * @default ['keys', '*']
+   *
+   * @type ```typescript
+   * type TGitIgnore = boolean | TFormatUsable;
+   * ```
+   * - if `true`: use `path + file + fileExt`
+   * - if TFormatUsable: use custom path
+   *
+   * if path is having {{variables}}, this will convert {{variables}} to `*`
    * @example path: `['keys', '{{type}}']` -> `keys/*`
    * @example path: `['keys', '{{type}}', 'v', '{{version}}']` -> `keys/* /v/* /{{file.join( {{fileSplitor}} )}}.{{fileExt}}`
    */
-  gitIgnore: boolean;
+  gitIgnore: boolean | TFormatUsable;
 
   /**
    * Options for cyprto hash, verify, encrypt, decrypt keys

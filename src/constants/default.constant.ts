@@ -19,6 +19,8 @@ export const DEFAULT_BASE_OPTIONS: Required<TBaseOptions> = {
   quiet: false,
 };
 
+export const DEFAULT_BASE_LOGGER = (...args: any[]) => console.log(...args);
+
 export const DEFAULT_EVENTS_OPTIONS: Required<TEventsOptions> = {
   ...DEFAULT_BASE_OPTIONS,
 

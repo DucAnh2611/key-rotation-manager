@@ -1,17 +1,22 @@
 import {
   TGenerateKeyOptions,
   TGetKey,
-  TGetKeyEvents,
   TGetKeyOptions,
   TKeyGenerated,
+  TKeyManagerHooks,
   TKeyManagerOptions,
   TKeyVariables,
 } from 'src/types/key-manager.types';
 import { Store } from './store.core';
-import { CryptoService } from 'src/utils/crypto.util';
+import {
+  CryptoService,
+  executePromisably,
+  addDuration,
+  bindString,
+  isDate,
+  isType,
+} from 'src/utils';
 import { DEFAULT_KEY_MANAGER_OPTIONS } from 'src/constants/default.constant';
-import { addDuration, bindString, isDate, isType } from 'src/utils/string.util';
-import { executePromisably, promiseAll } from 'src/utils/promise.util';
 
 export class KeyManager extends Store {
   private cryptoService: CryptoService;
@@ -41,8 +46,6 @@ export class KeyManager extends Store {
    * @param options.version Specific key version to retrieve
    * @param options.onRotate Optional rotation configuration used when the key
    *        is expired and renewable
-   *
-   * @param events Configuration for event triggered
    *
    * @returns An object containing:
    * - `ready`: The valid (usable) key, or the newly generated key after rotation
@@ -74,23 +77,14 @@ export class KeyManager extends Store {
    * // Use expired.originKey ?? ready.originKey safely
    * ```
    */
-  public async getKey(
-    options: TGetKeyOptions,
-    /**
-     * If this is not provided, the key manager will throw error instead of fire event
-     */
-    events: Partial<TGetKeyEvents> = {}
-  ): Promise<TGetKey> {
+  public async getKey(options: TGetKeyOptions): Promise<TGetKey> {
     const { path, version } = options;
 
     const key = await this.getKeyByStore(path, String(version));
 
     if (!key) {
-      await executePromisably(events.onKeyNotFound?.bind(this)(path, version));
-      await this.sysLog(`Key not found!`, {
-        path,
-        version,
-      });
+      await this.runKeyHook('onKeyNotFound', path, version);
+      this.sysLog(`Key not found!`, { path, version });
       return { expired: null, ready: null };
     }
 
@@ -98,12 +92,8 @@ export class KeyManager extends Store {
 
     if (!ok && isExpired && isRenewable && key) {
       if (!options.onRotate) {
-        await promiseAll(
-          executePromisably(events.onMissingRotateOption?.bind(this)(key, options)),
-          this.sysLog('Expired rotate options not provided!', {
-            options,
-          })
-        );
+        await this.runKeyHook('onKeyMissingRotateOption', key, options);
+        this.sysLog(`Key missing rotate option!`, { path, version });
         return { expired: null, ready: null };
       }
 
@@ -112,40 +102,22 @@ export class KeyManager extends Store {
         ...options.onRotate,
       });
 
-      await promiseAll(
-        executePromisably(
-          events.onKeyRenewed?.bind(this)({ expired: key, ready: renew.key }, options.onRotate)
-        ),
-        this.sysLog(`Key renewed!`, {
-          path,
-          version,
-        })
-      );
+      const resGetKey = { expired: key, ready: renew.key };
 
-      return { expired: key, ready: renew.key };
+      await this.runKeyHook('onKeyRenewed', resGetKey, options);
+      this.sysLog(`Key renewed!`, { path, version });
+      return resGetKey;
     }
 
     if (!ok && isExpired && !isRenewable && key) {
-      await promiseAll(
-        executePromisably(events.onExpired?.bind(this)(path, key)),
-        this.sysLog(`Key expired!`, {
-          path,
-          version,
-        })
-      );
+      await this.runKeyHook('onKeyExpired', path, key);
+      this.sysLog(`Key expired!`, { path, version });
       return { expired: key, ready: null };
     }
 
     if (!ok) {
-      await promiseAll(
-        executePromisably(events.onKeyInvalid?.bind(this)(key, message, errorOn)),
-        this.sysLog(`Key is invalid!`, {
-          path,
-          version,
-          reason: errorOn,
-          message,
-        })
-      );
+      await this.runKeyHook('onKeyInvalid', key, message, errorOn);
+      this.sysLog(`Key invalid!`, { path, version });
       return { expired: null, ready: null };
     }
 
@@ -311,5 +283,12 @@ export class KeyManager extends Store {
       }),
       variables
     );
+  }
+
+  private runKeyHook<K extends keyof TKeyManagerHooks>(
+    name: K,
+    ...args: Parameters<TKeyManagerHooks[K]>
+  ): ReturnType<TKeyManagerHooks[K]> {
+    return this.runHook<TKeyManagerHooks, K>(name, ...args);
   }
 }

@@ -20,11 +20,11 @@ export type TGetKeyOptions = {
     Pick<TGenerateKeyOptions, 'keyLength' | 'merge'>;
 };
 
-export type TGetKeyEvents = {
+export type TKeyManagerHooks = {
   /**
    * This will fire when key is rotatable but expired and missing options to rotate
    */
-  onMissingRotateOption: (key: TKeyGenerated, options: TGetKeyOptions) => void | Promise<void>;
+  onKeyMissingRotateOption: (key: TKeyGenerated, options: TGetKeyOptions) => void | Promise<void>;
   /**
    * This will fire when key is invalid includes validate types, from date, to date, etc...
    */
@@ -36,7 +36,7 @@ export type TGetKeyEvents = {
   /**
    * This will fire when key is renewed
    */
-  onKeyRenewed: (getKey: TGetKey, options: TGetKeyOptions['onRotate']) => void | Promise<void>;
+  onKeyRenewed: (getKey: TGetKey, options: TGetKeyOptions) => void | Promise<void>;
   /**
    * This will fire when key file is not found or version is not found in file
    * @description
@@ -48,7 +48,7 @@ export type TGetKeyEvents = {
    * - hashedBytes is less than 0
    */
   onKeyNotFound: (path: string, version: string | number) => void | Promise<void>;
-  onExpired: (path: string, key: TKeyGenerated) => void | Promise<void>;
+  onKeyExpired: (path: string, key: TKeyGenerated) => void | Promise<void>;
 };
 
 export type TGenerateKeyOptions = {
