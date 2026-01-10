@@ -1,11 +1,11 @@
 import { EEvent, TEvents, TFormatUsable, TGetKeyFn, TSaveKeyFn, TStoreOptions } from 'src/types';
-import { ConfigEvents } from './config-events.core';
 import { FileUtil } from 'src/utils';
 import { DEFAULT_STORE_OPTIONS } from 'src/constants/default.constant';
 import { join } from 'path';
 import { TKeyGenerated } from 'src/types/key-manager.types';
+import { Events } from './events.core';
 
-export class Store extends ConfigEvents {
+export class Store extends Events {
   private sOptions: Required<Omit<TStoreOptions, 'useEvent' | 'crypto'>>;
   private fileUtil: FileUtil;
   protected storePath?: string;

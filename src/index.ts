@@ -5,13 +5,16 @@ export * from './types';
 let instance: KM | null = null;
 
 /**
- *
- * @param options: Options to create new instance
- * @param only: use session instance or create new instance
- * @returns new instance
+ * Create a new KeyManager instance
+ * @param options - Options to configure the instance
+ * @param singleton - If true, returns a shared singleton instance; if false, creates a new instance
+ * @returns KM instance
  */
-export const create = (options: Partial<types.TModuleOptions> = {}, only: boolean = true): KM => {
-  if (only) return new KM(options);
+export const create = (
+  options: Partial<types.TModuleOptions> = {},
+  singleton: boolean = false
+): KM => {
+  if (!singleton) return new KM(options);
 
   if (!instance) {
     instance = new KM(options);

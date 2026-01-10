@@ -521,13 +521,13 @@ const cloned = original.clone({
 
 ## 📖 API Reference
 
-### `create(options?, only?)`
+### `create(options?, singleton?)`
 
 Creates a new KeyManager instance.
 
 **Parameters:**
 - `options` (optional): Partial `TModuleOptions`
-- `only` (optional): `boolean` - If `false`, returns a singleton instance
+- `singleton` (optional): `boolean` - If `true`, returns a shared singleton instance (default: `false`)
 
 **Returns:** `KM` instance
 
@@ -535,7 +535,7 @@ Creates a new KeyManager instance.
 ```typescript
 const km = create({ versionGenerator: () => 'v1' });
 // or
-const km = create({}, false); // Singleton instance
+const km = create({}, true); // Singleton instance
 ```
 
 ### `newKey(options, variables?)`

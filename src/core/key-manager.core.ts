@@ -74,7 +74,7 @@ export class KeyManager extends Store {
    *   console.log('Key was rotated from version:', expired.version);
    * }
    *
-   * // Use expired.originKey ?? ready.originKey safely
+   * // Use expired?.key ?? ready?.key safely
    * ```
    */
   public async getKey(options: TGetKeyOptions): Promise<TGetKey> {
@@ -83,7 +83,7 @@ export class KeyManager extends Store {
     const key = await this.getKeyByStore(path, String(version));
 
     if (!key) {
-      await this.runKeyHook('onKeyNotFound', path, version);
+      this.runKeyHook('onKeyNotFound', path, version);
       this.sysLog(`Key not found!`, { path, version });
       return { expired: null, ready: null };
     }
@@ -92,7 +92,7 @@ export class KeyManager extends Store {
 
     if (!ok && isExpired && isRenewable && key) {
       if (!options.onRotate) {
-        await this.runKeyHook('onKeyMissingRotateOption', key, options);
+        this.runKeyHook('onKeyMissingRotateOption', key, options);
         this.sysLog(`Key missing rotate option!`, { path, version });
         return { expired: null, ready: null };
       }
@@ -104,19 +104,19 @@ export class KeyManager extends Store {
 
       const resGetKey = { expired: key, ready: renew.key };
 
-      await this.runKeyHook('onKeyRenewed', resGetKey, options);
+      this.runKeyHook('onKeyRenewed', resGetKey, options);
       this.sysLog(`Key renewed!`, { path, version });
       return resGetKey;
     }
 
     if (!ok && isExpired && !isRenewable && key) {
-      await this.runKeyHook('onKeyExpired', path, key);
+      this.runKeyHook('onKeyExpired', path, key);
       this.sysLog(`Key expired!`, { path, version });
       return { expired: key, ready: null };
     }
 
     if (!ok) {
-      await this.runKeyHook('onKeyInvalid', key, message, errorOn);
+      this.runKeyHook('onKeyInvalid', key, message, errorOn);
       this.sysLog(`Key invalid!`, { path, version });
       return { expired: null, ready: null };
     }
@@ -170,7 +170,7 @@ export class KeyManager extends Store {
     const { key, length: kLength } = this.cryptoService.generateKey(keyLength);
     const { salt } = this.cryptoService.generateSalt();
 
-    await this.sysLog(`Key generated\nOptions:`, options);
+    this.sysLog(`Key generated\nOptions:`, options);
 
     const hashedKey = this.cryptoService.hash(key, salt);
     const now = new Date();
@@ -187,7 +187,7 @@ export class KeyManager extends Store {
     };
 
     const path = await this.saveKeyToStore(keyGenerated, !!merge, variables);
-    await this.sysLog(`Key saved!`, {
+    this.sysLog(`Key saved!`, {
       path,
       version: keyGenerated.version,
       type: keyGenerated.type,
@@ -233,7 +233,7 @@ export class KeyManager extends Store {
       hashed: 'string',
       rotate: 'boolean',
       type: 'string',
-      version: 'string',
+      version: 'stringNumber',
       hashedBytes: 'number',
     };
 
