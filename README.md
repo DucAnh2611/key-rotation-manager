@@ -4,6 +4,8 @@
 
 A production-ready library for generating, storing, rotating, and retrieving cryptographic keys with support for expiration, versioning, merge strategies, custom storage logic, and lifecycle hooks.
 
+**Key Rotation Manager** is a comprehensive Node.js library for secure cryptographic key management. It provides automatic key rotation, expiration handling, versioning, and flexible storage options. Perfect for API key management, token rotation, secret management, and credential handling in production applications.
+
 [![npm version](https://img.shields.io/npm/v/key-rotation-manager)](https://www.npmjs.com/package/key-rotation-manager)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen)](https://nodejs.org/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
@@ -44,6 +46,8 @@ A production-ready library for generating, storing, rotating, and retrieving cry
 - 📡 **Event-Driven** - Lifecycle hooks for key events
 - 📁 **Git Integration** - Automatic `.gitignore` management
 - 🎯 **TypeScript** - Full TypeScript support with comprehensive types
+- ⚡ **Zero Dependencies** - Uses native Node.js crypto module
+- 🚀 **Production Ready** - Battle-tested for enterprise applications
 
 ---
 
@@ -54,6 +58,8 @@ npm install key-rotation-manager
 ```
 
 **Requirements:** Node.js >= 18.0.0
+
+**Package:** [npmjs.com/package/key-rotation-manager](https://www.npmjs.com/package/key-rotation-manager)
 
 ---
 
@@ -562,6 +568,7 @@ Retrieves a key by path and version.
 - `options`: `TGetKeyOptions`
   - `path`: `string` - Storage path
   - `version`: `string` - Key version
+  - `disableHooks?`: `boolean` - Skip hook execution (default: `false`)
   - `onRotate?`: Rotation options (if key is expired and rotatable)
 
 **Returns:** `Promise<TGetKey>`
@@ -577,7 +584,44 @@ const result = await keyManager.getKey({
     rotate: true,
   },
 });
+
+// With disabled hooks for performance
+const result = await keyManager.getKey({
+  path: '/keys/api',
+  version: 'v1',
+  disableHooks: true,
+});
 ```
+
+### `verifyKey(hashedKey, path, version, disableGetKeyHooks?)`
+
+Verifies a hashed key against a stored key.
+
+**Parameters:**
+- `hashedKey`: `string` - The hashed key to verify
+- `path`: `string` - Storage path
+- `version`: `string | number` - Key version
+- `disableGetKeyHooks?`: `boolean` - Disable hooks in getKey call (default: `true`)
+
+**Returns:** `Promise<boolean>`
+
+**Example:**
+```typescript
+const isValid = await keyManager.verifyKey(hashedKey, '/keys/api', 'v1');
+if (isValid) {
+  console.log('Key is valid!');
+} else {
+  console.log('Key is invalid!');
+}
+
+// Verification with hooks enabled
+const isValid = await keyManager.verifyKey(hashedKey, '/keys/api', 'v1', false);
+```
+
+**Notes:**
+- Uses PBKDF2 verification if the key has a `secret` field
+- Falls back to direct hash comparison otherwise
+- Verifies against expired keys if no ready key is available
 
 ### `useHooks(hooks)`
 
@@ -602,12 +646,16 @@ Sets a single hook.
 
 ## 🎯 Use Cases
 
-- **API Key Management** - Secure storage and rotation of API keys
-- **Token Rotation** - Automatic credential rotation for services
-- **Secret Management** - File-based secret storage with expiration
-- **Multi-Version Keys** - Support for multiple key versions simultaneously
-- **Custom Persistence** - Integrate with databases or cloud storage
-- **Backend Services** - Production-ready key management for Node.js applications
+- **API Key Management** - Secure storage and rotation of API keys for third-party services
+- **Token Rotation** - Automatic credential rotation for OAuth tokens, JWT secrets, and access tokens
+- **Secret Management** - File-based secret storage with expiration for application secrets
+- **Multi-Version Keys** - Support for multiple key versions simultaneously during rotation periods
+- **Custom Persistence** - Integrate with databases, cloud storage, or key management services
+- **Backend Services** - Production-ready key management for Node.js applications and microservices
+- **Encryption Keys** - Manage encryption keys for data protection with automatic rotation
+- **Session Keys** - Rotate session encryption keys periodically for enhanced security
+- **Database Credentials** - Rotate database passwords and connection strings securely
+- **Service-to-Service Authentication** - Manage keys for inter-service communication
 
 ---
 
@@ -615,6 +663,7 @@ Sets a single hook.
 
 See the full changelog for each version:
 
+- **[v1.1.2](https://github.com/DucAnh2611/key-rotation-manager/tree/master/changelogs/1.1.2.md)** - Key verification, hook control, enhanced documentation
 - **[v1.1.1](https://github.com/DucAnh2611/key-rotation-manager/tree/master/changelogs/1.1.1.md)** - Native crypto, zero dependencies, bug fixes
 - **[v1.0.10](https://github.com/DucAnh2611/key-rotation-manager/tree/master/changelogs/1.0.10.md)** - Hooks system, enhanced gitIgnore configuration
 
@@ -650,6 +699,26 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](https://github.com/DucAnh2611/key-rotation-manager/blob/master/LICENSE) file for details.
+
+---
+
+## 🔍 Search Keywords
+
+This package is optimized for searches related to:
+- key rotation
+- key management
+- cryptographic key storage
+- API key rotation
+- secret rotation
+- credential management
+- token rotation
+- key versioning
+- automatic key rotation
+- secure key storage
+- Node.js key management
+- TypeScript key management
+- production key rotation
+- enterprise key management
 
 ---
 

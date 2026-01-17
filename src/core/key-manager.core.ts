@@ -83,7 +83,7 @@ export class KeyManager extends Store {
     const key = await this.getKeyByStore(path, String(version));
 
     if (!key) {
-      this.runKeyHook('onKeyNotFound', path, version);
+      if (!options.disableHooks) this.runKeyHook('onKeyNotFound', path, version);
       this.sysLog(`Key not found!`, { path, version });
       return { expired: null, ready: null };
     }
@@ -92,9 +92,9 @@ export class KeyManager extends Store {
 
     if (!ok && isExpired && isRenewable && key) {
       if (!options.onRotate) {
-        this.runKeyHook('onKeyMissingRotateOption', key, options);
+        if (!options.disableHooks) this.runKeyHook('onKeyMissingRotateOption', key, options);
         this.sysLog(`Key missing rotate option!`, { path, version });
-        return { expired: null, ready: null };
+        return { expired: key, ready: null };
       }
 
       const renew = await this.newKey({
@@ -104,19 +104,19 @@ export class KeyManager extends Store {
 
       const resGetKey = { expired: key, ready: renew.key };
 
-      this.runKeyHook('onKeyRenewed', resGetKey, options);
+      if (!options.disableHooks) this.runKeyHook('onKeyRenewed', resGetKey, options);
       this.sysLog(`Key renewed!`, { path, version });
       return resGetKey;
     }
 
     if (!ok && isExpired && !isRenewable && key) {
-      this.runKeyHook('onKeyExpired', path, key);
+      if (!options.disableHooks) this.runKeyHook('onKeyExpired', path, key);
       this.sysLog(`Key expired!`, { path, version });
       return { expired: key, ready: null };
     }
 
     if (!ok) {
-      this.runKeyHook('onKeyInvalid', key, message, errorOn);
+      if (!options.disableHooks) this.runKeyHook('onKeyInvalid', key, message, errorOn);
       this.sysLog(`Key invalid!`, { path, version });
       return { expired: null, ready: null };
     }
@@ -168,17 +168,18 @@ export class KeyManager extends Store {
     const { rotate, duration, type, unit, merge, keyLength } = options;
 
     const { key, length: kLength } = this.cryptoService.generateKey(keyLength);
-    const { salt } = this.cryptoService.generateSalt();
+    const { salt: secret } = this.cryptoService.generateSalt();
 
     this.sysLog(`Key generated\nOptions:`, options);
 
-    const hashedKey = this.cryptoService.hash(key, salt);
+    const hashedKey = this.cryptoService.hash(key, secret);
     const now = new Date();
 
     const keyGenerated: TKeyGenerated = {
       from: now.toISOString(),
       to: duration && unit ? addDuration(now, duration, unit).toISOString() : 'NON_EXPIRED',
       key: key,
+      secret: secret,
       hashed: hashedKey,
       hashedBytes: kLength,
       type,
@@ -194,6 +195,56 @@ export class KeyManager extends Store {
     });
 
     return { key: keyGenerated, path };
+  }
+
+  /**
+   * Verify a key by hashed key and path and version
+   * @param hashedKey Hashed key to verify
+   * @param path Path to the key
+   * @param version Version of the key
+   * @param disableGetKeyHooks Disable getKey method hooks, should not use hooks in this method
+   * @returns True if the key is valid, false otherwise
+   * 
+   * @example
+   * ```ts
+   * const isValid = await keyManager.verifyKey(hashedKey, path, version);
+   * if (isValid) {
+   *   console.log('Key is valid!');
+   * } else {
+   *   console.log('Key is invalid!');
+   * }
+   * ```
+   * 
+   * @note
+   * 1. This use getKey method to get key, so disableGetKeyHooks option is set to true, if disableGetKeyHooks is not provided, it will be set to true 
+   * 
+   * 2. Get key from store
+   * - If the key is expired, the expired key will be used to verify the key
+   * - If the key is not expired, the ready key will be used to verify the key
+   * 
+   * 3. If the key is not found, the function will return false
+   * 
+   * 4. Verify key strategy
+   * - If the key is found and secret is provided, compare original key with hashed key using secret
+   * - If the key is found and secret is not provided, compare original key with hashed key
+   * 
+   */
+  public async verifyKey(hashedKey: string, path: string, version: string | number, disableGetKeyHooks: boolean = true): Promise<boolean> {
+    const { ready, expired } = await this.getKey({ path, version: String(version), disableHooks: disableGetKeyHooks });
+
+    if (!ready && !expired) {
+      this.sysLog(`Key not found to verify!`, { path, version });
+      return false;
+    }
+
+    // if expire -> expired key, if not expire -> ready key
+    // case both key appear when onRotate options is set
+    const key = (expired ?? ready) as TKeyGenerated;
+
+    this.sysLog('Verifying key...', { hashedKey, path, version, validateMethod: key.secret ? 'verifyHash(key, hashedKey, secret)' : 'hashedKey === key.hashed' });
+    if (key.secret) return this.cryptoService.verifyHash(key.key, hashedKey, key.secret);
+
+    return hashedKey === key.hashed;
   }
 
   private async getKeyByStore(path: string, version: string): Promise<TKeyGenerated | null> {
@@ -235,6 +286,7 @@ export class KeyManager extends Store {
       type: 'string',
       version: 'stringNumber',
       hashedBytes: 'number',
+      secret: 'optionalString',
     };
 
     for (const [field, type] of Object.entries(typeChecks) as Array<

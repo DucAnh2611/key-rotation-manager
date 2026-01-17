@@ -89,5 +89,8 @@ export const isType = (data?: unknown) => {
     boolean: typeof data === 'boolean',
     null: data === null,
     undefined: data === undefined,
+    optionalNumber: typeof data === "undefined" || (typeof data === 'number' && !Number.isNaN(Number(data))),
+    optionalString: typeof data === "undefined" || typeof data === 'string',
+    optionalStringNumber: typeof data === "undefined" || typeof data === 'string' || typeof data === 'number',
   };
 };

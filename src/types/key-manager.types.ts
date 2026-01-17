@@ -16,6 +16,7 @@ export type TGetKey = { expired: TKeyGenerated | null; ready: TKeyGenerated | nu
 export type TGetKeyOptions = {
   path: string;
   version: string;
+  disableHooks?: boolean;
   onRotate?: Omit<Required<TGenerateKeyOptions>, 'type' | 'keyLength' | 'merge'> &
     Pick<TGenerateKeyOptions, 'keyLength' | 'merge'>;
 };
@@ -107,6 +108,10 @@ export type TKeyGenerated = {
    * Auto renew on expired
    */
   rotate: boolean;
+  /**
+   * Secret used to hash the key
+   */
+  secret?: string;
 };
 
 export type TKeyPrimitive = string | number;
