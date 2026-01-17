@@ -1,6 +1,6 @@
 {
   "name": "key-rotation-manager",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "Simple, secure key rotation for Node.js",
   "type": "module",
   "main": "./dist/index.cjs",
