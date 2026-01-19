@@ -37,7 +37,7 @@ export type TKeyManagerHooks = {
   /**
    * This will fire when key is renewed
    */
-  onKeyRenewed: (getKey: TGetKey, options: TGetKeyOptions) => void | Promise<void>;
+  onKeyRenewed: (getKey: TGetKey, path: string, options: TGetKeyOptions) => void | Promise<void>;
   /**
    * This will fire when key file is not found or version is not found in file
    * @description

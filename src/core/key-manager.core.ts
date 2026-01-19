@@ -104,8 +104,8 @@ export class KeyManager extends Store {
 
       const resGetKey = { expired: key, ready: renew.key };
 
-      if (!options.disableHooks) this.runKeyHook('onKeyRenewed', resGetKey, options);
-      this.sysLog(`Key renewed!`, { path, version });
+      if (!options.disableHooks) this.runKeyHook('onKeyRenewed', resGetKey, renew.path, options);
+      this.sysLog(`Key renewed!`, { path: renew.path, version });
       return resGetKey;
     }
 
