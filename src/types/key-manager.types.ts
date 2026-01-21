@@ -11,7 +11,7 @@ export type TKeyManagerOptions = Partial<TStoreOptions> & {
 
 export type TKeyDurationUnit = 'seconds' | 'minutes' | 'hours' | 'days';
 
-export type TGetKey = { expired: TKeyGenerated | null; ready: TKeyGenerated | null };
+export type TGetKey = { expired: TKeyGenerated | null; ready: TKeyGenerated | null, newKeyPath?: string };
 
 export type TGetKeyOptions = {
   path: string;
